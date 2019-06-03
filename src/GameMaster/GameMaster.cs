@@ -7,6 +7,7 @@ using Microsoft.Azure.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Azure.ServiceBus.Management;
 using System.Text;
+using Rochambot;
 
 namespace GameMaster
 {

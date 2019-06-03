@@ -12,16 +12,8 @@ namespace RobbyBot
 
         static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                .ConfigureAppConfiguration((hostingContext, config) =>
-                {
-                    config.AddAzureAppConfiguration(options => 
-                    {
-                        var cnStr = Environment.GetEnvironmentVariable("AzureAppConfigConnectionString");
-                        options.Connect(cnStr);
-                    });
-                })
-                .ConfigureServices(services => 
-                    services.AddHostedService<GameRequestHandler>()
-                            .AddHostedService<ShapeHandler>());
+                .ConfigureServices(services =>
+                    services.AddHostedService<GameRequestHandler>());
+                            //.AddHostedService<ShapeHandler>());
     }
 }

@@ -13,11 +13,12 @@ namespace RobbyBot
         readonly IConfiguration _configuration;
         readonly string _botId;
 
-        IQueueClient _botRequestQueue;
-        IQueueClient _botResponseQueue;
+        ISubscriptionClient _botRequestQueue;
+        ITopicClient _botResponseQueue;
 
         public GameRequestHandler(ILogger<GameRequestHandler> logger, IConfiguration configuration)
         {
+
             _logger = logger;
             _configuration = configuration;
             _botId = _configuration["BotId"];
@@ -25,21 +26,40 @@ namespace RobbyBot
 
         public Task StartAsync(CancellationToken token)
         {
-            _botRequestQueue = new QueueClient(_configuration["AzureServiceBusConnectionString"], _configuration["BotRequestQueueName"]);
-            _botResponseQueue = new QueueClient(_configuration["AzureServiceBusConnectionString"], _configuration["BotResponseQueueName"]);
+            _botRequestQueue = new SubscriptionClient(_configuration["AzureServiceBusConnectionString"],
+                                                      "matchmaking",
+                                                      "bots");
+
+            _botResponseQueue = new TopicClient(_configuration["AzureServiceBusConnectionString"],
+                                    "matchmaking");
+
             _botRequestQueue.RegisterMessageHandler(ReceivedGameRequestAsync, ReceivedGameRequestErrorAsync);
+
+            //await _botRequestQueue.AddRuleAsync("requestRule", new CorrelationFilter
+            //{
+            //    Label = "gamerequest"
+            //});
 
             return Task.CompletedTask;
         }
 
-        Task ReceivedGameRequestAsync(Message message, CancellationToken _) =>
-            _botResponseQueue.SendAsync(new Message
+        private async Task ReceivedGameRequestAsync(Message message, CancellationToken _)
+        {
+            var msg = new Message
             {
-                SessionId = message.ReplyToSessionId,
-                ReplyToSessionId = _botId
-            });
+                SessionId = message.ReplyToSessionId
+            };
+            msg.Label = "gameready";
+            msg.UserProperties.Add("gameId", message.UserProperties["gameId"]);
+            msg.UserProperties.Add("oponentId", _botId);
 
-        Task ReceivedGameRequestErrorAsync(ExceptionReceivedEventArgs arg)
+            await _botResponseQueue.SendAsync(msg);
+            //TODO: Looks like the default for topics is to handle them when they are processed
+            //This might be OK for now but we should think about it.
+            //await _botRequestQueue.CompleteAsync(message.SystemProperties.LockToken);
+        }
+
+        private Task ReceivedGameRequestErrorAsync(ExceptionReceivedEventArgs arg)
         {
             _logger.LogError(arg.Exception, "Error receiving game request");
             return Task.CompletedTask;

@@ -18,13 +18,17 @@ namespace MatchMaker
         readonly IMessageReceiver _gameQueue;
         readonly string _id = Guid.NewGuid().ToString();
 
-        public MatchMaker(ILogger<MatchMaker> logger, IConfiguration configuration)
+        readonly ITopicClient _matchmakingTopic;
+
+        public MatchMaker(ILogger<MatchMaker> logger, 
+                          IConfiguration configuration)
         {
             _logger = logger;
             _responseQueue = new QueueClient(configuration["AzureServiceBusConnectionString"], configuration["ResponseQueueName"]);
             _botRequestQueue = new QueueClient(configuration["AzureServiceBusConnectionString"], configuration["BotRequestQueueName"]);
             _botResponseQueue = new SessionClient(configuration["AzureServiceBusConnectionString"], configuration["BotResponseQueueName"]);
             _gameQueue = new MessageReceiver(configuration["AzureServiceBusConnectionString"], configuration["GameQueueName"]);
+            _matchmakingTopic = new TopicClient(configuration["AzureServiceBusConnectionString"], EntityNameHelper.FormatSubscriptionPath("matchmaking", "matchmaker"));
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -41,21 +45,24 @@ namespace MatchMaker
                 }
 
                 var playerOne = messages[0];
-                _logger.LogTrace("1 message receiver, asking for bot to play against {opponent}", playerOne.ReplyToSessionId);
+                _logger.LogTrace("1 message received, asking for bot to play against {opponent}", playerOne.ReplyToSessionId);
 
-                await _botRequestQueue.SendAsync(new Message
-                {
-                    ReplyToSessionId = _id
+                await _matchmakingTopic.SendAsync(new Message {
+                    SessionId = playerOne.ReplyToSessionId
                 });
+                // await _botRequestQueue.SendAsync(new Message
+                // {
+                //     ReplyToSessionId = _id
+                // });
 
-                var bot = await session.ReceiveAsync();
-                await _responseQueue.SendAsync(new Message
-                {
-                    SessionId = playerOne.ReplyToSessionId,
-                    ReplyToSessionId = bot.ReplyToSessionId
-                });
-                await _gameQueue.CompleteAsync(playerOne.SystemProperties.LockToken);
-                await session.CompleteAsync(bot.SystemProperties.LockToken);
+                // var bot = await session.ReceiveAsync();
+                // await _responseQueue.SendAsync(new Message
+                // {
+                //     SessionId = playerOne.ReplyToSessionId,
+                //     ReplyToSessionId = bot.ReplyToSessionId
+                // });
+                //await _gameQueue.CompleteAsync(playerOne.SystemProperties.LockToken);
+                //await session.CompleteAsync(bot.SystemProperties.LockToken);
             }
 
             await session.CloseAsync();

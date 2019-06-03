@@ -3,17 +3,38 @@
 
 <h1>Rochambot!</h1>
 
-<p>GameId: @GameClient.GameId</p>
-<p>Status: @status</p>
-<p>BotShape: @botShape</p>
-<p>PlayerShape: @playerShape</p>
-<p>Opponent: @GameClient.Opponent?.Id</p>
-
-@if (GameClient.Opponent is null)
+@if(GameClient.CurrentGame == null)
 {
     <div id="RequestGame">
         <button type="button" class="btn btn-primary btn-lg" onclick="@RequestGame">Request Game</button>
     </div>
+    <h1>Active Games:</h1>
+    <div class="card-group">
+        <ul class="list-group list-group-flush">
+        @foreach(var game in GameClient.Games)
+        {
+            <li class="list-group-item">
+                <div class="card text=center">
+                    <h5 class="card-title">@game.Id</h5>
+                    <p>
+                        Oponent: @game.OponentId
+                        Status: @game.CurrentStatus
+                    </p>
+                    <button class="btn btn-primary" onclick="@(() => PlayGame(game.Id))">Play</button>
+                </div>
+            </li>
+        }
+        </ul>
+    </div>
+}
+else
+{
+
+}
+
+@if (GameClient.Opponent is null)
+{
+
 }
 else
 {
@@ -44,25 +65,41 @@ else
 
 @functions {
 
-    Shape botShape;
-    Shape playerShape;
-    string status;
-    bool disabled = false;
-    string winLossStatus = "normal";
+        Shape botShape;
+        Shape playerShape;
+        string status;
+        bool disabled = false;
+        string winLossStatus = "normal";
 
-    protected override Task OnInitAsync()
+    protected override async Task OnInitAsync()
     {
+        GameClient.OnStateChanged += UpdateState;
+        //TODO: Do an auth and pass a persistant Id to this method.
+        await GameClient.SetPlayerId();
         //await RequestGame();
 
+    }
+
+    async void UpdateState(object sender, EventArgs args)
+    {
+        await Invoke(() =>
+        {
+            StateHasChanged();
+        });
+    }
+
+    Task PlayGame(string game)
+    {
         return Task.CompletedTask;
     }
 
-    async Task Play(Shape playerPick)
+    Task Play(Shape playerPick)
     {
         playerShape = playerPick;
         status = "Waiting for bot...";
         disabled = true;
-        await GameClient.PlayShapeAsync(playerPick);
+        //await GameClient.PlayShapeAsync(playerPick);
+        return Task.CompletedTask;
     }
 
     async Task RequestGame()
