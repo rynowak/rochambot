@@ -1,0 +1,27 @@
+﻿@if (UserState.CurrentUser == null)
+{
+    <text>...</text>
+}
+else if (UserState.CurrentUser.IsLoggedIn)
+{
+    <div class="col-md-auto">
+        <span class="username">@UserState.CurrentUser.DisplayName</span>
+    </div>
+    <div class="col col-lg-2">
+        <span class="sign-out" onclick="@UserState.SignOut">Sign out</span>
+    </div>
+}
+else
+{
+    <div class="col-md-auto">
+        Login to play
+    </div>
+    <div class="col col-lg-2">
+        <button onclick="@UserState.SignInWithTwitter" title="Sign in with Twitter" class="sign-in"><i class="fab fa-twitter"></i></button>
+        <button onclick="@UserState.SignInWithMicrosoft" title="Sign in with Microsoft" class="sign-in"><i class="fab fa-microsoft"></i></button>
+    </div>
+}
+
+@functions {
+    [CascadingParameter] UserStateProvider UserState { get; set; }
+}
