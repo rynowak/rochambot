@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package GameList;
+
+// The game list service definition.
+service GameLister {
+  // gets a game list
+  rpc GetGameList (GameListRequest) returns (GameListReply) {}
+}
+
+// The request message containing the user's name.
+message GameListRequest {
+  string player = 1;
+}
+
+// The response message containing the greetings.
+message GameListReply {
+  string gameId = 1;
+  string player = 2;
+  string opponent = 3;
+}

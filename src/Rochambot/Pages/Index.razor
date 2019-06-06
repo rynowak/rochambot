@@ -1,97 +1,115 @@
 ﻿@page "/"
+@using Microsoft.Extensions.Logging
 @inject GameClient GameClient
+@inject ILogger<Index> Logger
 
 <h1>Rochambot!</h1>
 
-@if(GameClient.CurrentGame == null)
+@if (UserState.CurrentUser == null || (UserState.CurrentUser != null && !UserState.CurrentUser.IsLoggedIn))
 {
-    <div id="RequestGame">
-        <button type="button" class="btn btn-primary btn-lg" onclick="@RequestGame">Request Game</button>
-    </div>
-    <h1>Active Games:</h1>
-    <div class="card-group">
-        <ul class="list-group list-group-flush">
-        @foreach(var game in GameClient.Games)
-        {
-            <li class="list-group-item">
-                <div class="card text=center">
-                    <h5 class="card-title">@game.Id</h5>
-                    <p>
-                        Oponent: @game.OponentId
-                        Status: @game.CurrentStatus
-                    </p>
-                    <button class="btn btn-primary" onclick="@(() => PlayGame(game.Id))">Play</button>
-                </div>
-            </li>
-        }
-        </ul>
-    </div>
+    <p>Rochambot is a human-against-bot-army game of Rock, Paper, Scissors. To play you must either 
+        login, or build your own Rochambot to play on your behalf.
+    </p>
 }
 else
 {
+    @if(GameClient.CurrentGame == null)
+    {
+        <div id="RequestGame">
+            <button type="button" class="btn btn-primary btn-lg" onclick="@RequestGame">Request Game</button>
+        </div>
+        <h1>Active Games:</h1>
+        <div class="card-group">
+            <ul class="list-group list-group-flush">
+            @foreach(var game in GameClient.Games)
+            {
+                <li class="list-group-item">
+                    <div class="card text=center">
+                        <h5 class="card-title">@game.Id</h5>
+                        <p>
+                            Oponent: @game.OponentId
+                            Status: @game.CurrentStatus
+                        </p>
+                        <button class="btn btn-primary" onclick="@(() => PlayGame(game.Id))">Play</button>
+                    </div>
+                </li>
+            }
+            </ul>
+        </div>
+    }
+    else
+    {
 
+    }
+
+    @if (GameClient.Opponent is null)
+    {
+
+    }
+    else
+    {
+        <div class="card-group">
+            <div class="card text-center">
+                <img class="card-img-top" src='@string.Format($"/images/rock-{winLossStatus}.png")' alt="Rock">
+            </div>
+            <div class="card text-center">
+                <img class="card-img-top" src='@string.Format($"/images/paper-{winLossStatus}.png")' alt="Paper">
+            </div>
+            <div class="card text-center">
+                <img class="card-img-top" src='@string.Format($"/images/scissors-{winLossStatus}.png")' alt="Scissors">
+            </div>
+        </div>
+
+        <div id="game">
+            <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Rock))">
+                <i class="fas fa-hand-rock"></i>
+            </button>
+            <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Paper))">
+                <i class="fas fa-hand-paper"></i>
+            </button>
+            <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Scissors))">
+                <i class="fas fa-hand-scissors"></i>
+            </button>
+        </div>
+    }
 }
 
-@if (GameClient.Opponent is null)
-{
 
-}
-else
-{
-    <div class="card-group">
-        <div class="card text-center">
-            <img class="card-img-top" src='@string.Format($"/images/rock-{winLossStatus}.png")' alt="Rock">
-        </div>
-        <div class="card text-center">
-            <img class="card-img-top" src='@string.Format($"/images/paper-{winLossStatus}.png")' alt="Paper">
-        </div>
-        <div class="card text-center">
-            <img class="card-img-top" src='@string.Format($"/images/scissors-{winLossStatus}.png")' alt="Scissors">
-        </div>
-    </div>
-
-    <div id="game">
-        <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Rock))">
-            <i class="fas fa-hand-rock"></i>
-        </button>
-        <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Paper))">
-            <i class="fas fa-hand-paper"></i>
-        </button>
-        <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Scissors))">
-            <i class="fas fa-hand-scissors"></i>
-        </button>
-    </div>
-}
 
 @functions {
+    [CascadingParameter] UserStateProvider UserState { get; set; }
 
-        Shape botShape;
-        Shape playerShape;
-        string status;
-        bool disabled = false;
-        string winLossStatus = "normal";
+    Shape botShape;
+    Shape playerShape;
+    string status;
+    bool disabled = false;
+    string winLossStatus = "normal";
 
     protected override async Task OnInitAsync()
     {
         GameClient.OnStateChanged += UpdateState;
-        //TODO: Do an auth and pass a persistant Id to this method.
-        await GameClient.SetPlayerId();
-        //await RequestGame();
-
     }
 
-    async void UpdateState(object sender, EventArgs args)
+    protected override async Task OnAfterRenderAsync()
     {
-        await Invoke(() =>
+        await LoginToGameClient();
+    }
+
+    void UpdateState(object sender, EventArgs args)
+    {   
+        Invoke(() =>
         {
             StateHasChanged();
         });
     }
 
-    Task PlayGame(string game)
+    async Task LoginToGameClient()
     {
-        return Task.CompletedTask;
-    }
+        if (UserState.CurrentUser != null && UserState.CurrentUser.IsLoggedIn)
+        {
+            await GameClient.SetPlayerId(UserState.CurrentUser);
+        }
+    } 
 
     Task Play(Shape playerPick)
     {
@@ -107,5 +125,10 @@ else
         status = "Requesting game...";
         await GameClient.RequestGameAsync();
         status = "Game found.";
+    }
+
+    Task PlayGame(string gameId)
+    {
+        return Task.CompletedTask;
     }
 }

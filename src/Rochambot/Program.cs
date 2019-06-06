@@ -14,12 +14,11 @@ namespace Rochambot
             Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration((hostingContext, config) =>
                 {
-                    var settings = config.Build();
-                    config.AddAzureAppConfiguration(options => 
+                    config.AddAzureAppConfiguration(options =>
                     {
-                        var cnStr = settings["AzureServiceBusConnectionString"];
+                        var cnStr = hostingContext.Configuration["AzureAppConfigConnectionString"];
                         options.Connect(cnStr);
-                    });
+                    }, optional: true);
                 })
                 .ConfigureWebHostDefaults(webBuilder => 
                     webBuilder.UseStartup<Startup>());

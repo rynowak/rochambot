@@ -10,6 +10,7 @@ using Microsoft.Azure.ServiceBus.Management;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Rochambot.Models;
 
 namespace Rochambot
 {
@@ -17,13 +18,9 @@ namespace Rochambot
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<GameClient> _logger;
-
         private readonly ITopicClient _matchmakingTopic;
         private readonly ISubscriptionClient _matchmakingClient;
         private readonly ISessionClient _matchmakingSessionClient;
-
-        private string _id = Guid.NewGuid().ToString();
-
         private IMessageSession _matchmakingSession;
 
         public GameClient(IConfiguration configuration,
@@ -42,25 +39,30 @@ namespace Rochambot
         public IList<Game> Games {get;}
         public Game CurrentGame {get;}
         public Opponent Opponent { get; private set; }
-
+        public UserState UserState { get; set; }
         public event EventHandler OnStateChanged;
 
-        public async Task SetPlayerId()
+        public async Task SetPlayerId(UserState userState)
         {
-            _matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(_id);
-            _matchmakingClient.RegisterSessionHandler(HandleMatchmakingMessage, HandleMatchmakingError);
+            if(UserState == null || (!UserState.DisplayName.Equals(userState.DisplayName)))
+            {
+                UserState = userState;
+                _logger.LogInformation($"User {UserState.DisplayName} logged in");
+                _matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(UserState.DisplayName);
+                _matchmakingClient.RegisterSessionHandler(HandleMatchmakingMessage, HandleMatchmakingError);
+                OnStateChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         public async Task RequestGameAsync()
         {
-
             var gameId = Guid.NewGuid().ToString();
 
             _logger.LogInformation("Sending matchmaker message.");
 
             var gameStartMessage = new Message
             {
-                ReplyToSessionId = _id
+                ReplyToSessionId = UserState.DisplayName
             };
 
             gameStartMessage.Label = "gamerequest";
