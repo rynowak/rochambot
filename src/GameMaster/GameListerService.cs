@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using GameList;
 using Grpc.Core;
 
-namespace CurrentGames
+namespace GameMaster
 {
     public class GameListerService : GameLister.GameListerBase
     {

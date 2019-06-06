@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using System;
 
@@ -10,20 +11,19 @@ namespace GameMaster
         public static void Main(string[] args) => 
             CreateHostBuilder(args).Build().Run();
 
-        static IHostBuilder CreateHostBuilder(string[] args) =>
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration((hostingContext, config) =>
                 {
                     config.AddAzureAppConfiguration(options => 
                     {
-                        var cnStr = Environment.GetEnvironmentVariable("AzureAppConfigConnectionString");
+                        var cnStr = hostingContext.Configuration["AzureAppConfigConnectionString"];
                         options.Connect(cnStr);
                     });
                 })
-                .ConfigureServices(services => 
+                .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    services.AddHostedService<GameMaster>();
-                    services.AddSingleton<GameData>();
+                    webBuilder.UseStartup<Startup>();
                 });
     }
 }

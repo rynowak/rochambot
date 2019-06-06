@@ -89,5 +89,28 @@ namespace GameMaster
             await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
             return game;
         }
+
+        public async Task<IEnumerable<Game>> GetGamesForPlayer(string playerId)
+        {
+            var sqlQueryText = "SELECT * FROM c WHERE c.LastName = '" + playerId + "'";
+
+            CosmosSqlQueryDefinition queryDefinition = new CosmosSqlQueryDefinition(sqlQueryText);
+            CosmosResultSetIterator<Game> queryResultSetIterator = 
+                _gamesContainer.Items.CreateItemQuery<Game>(queryDefinition, playerId);
+
+            List<Game> games = new List<Game>();
+
+            while (queryResultSetIterator.HasMoreResults)
+            {
+                CosmosQueryResponse<Game> currentResultSet = await queryResultSetIterator.FetchNextSetAsync();
+                foreach (Game game in currentResultSet)
+                {
+                    Console.WriteLine("\tRead {0}\n", game);
+                    games.Add(game);
+                }
+            }
+
+            return games;
+        }
     }
 }
