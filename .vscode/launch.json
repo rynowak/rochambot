@@ -8,9 +8,7 @@
             "name": "All",
             "configurations": [
                 "RobbyBot",
-                "MatchMaker",
                 "GameMaster",
-                "CurrentGames",
                 "WebClient"
             ]
         }
@@ -27,21 +25,8 @@
             "stopAtEntry": false,
             "console": "internalConsole",
             "env": {
-                "AzureAppConfigConnectionString" : ""
-            }
-        },
-        {
-            "name": "MatchMaker",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/MatchMaker/bin/Debug/netcoreapp3.0/MatchMaker.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/src/MatchMaker",
-            "stopAtEntry": false,
-            "console": "internalConsole",
-            "env": {
-                "AzureAppConfigConnectionString" : ""
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_AzureAppConfigConnectionString" : ""
             }
         },
         {
@@ -55,7 +40,8 @@
             "stopAtEntry": false,
             "console": "internalConsole",
             "env": {
-                "AzureAppConfigConnectionString" : ""
+                "DOTNET_ENVIRONMENT": "Development",
+                "DOTNET_AzureAppConfigConnectionString" : ""
             }
         },
         {
@@ -66,26 +52,6 @@
             "program": "${workspaceFolder}/src/Rochambot/bin/Debug/netcoreapp3.0/Rochambot.dll",
             "args": [],
             "cwd": "${workspaceFolder}/src/Rochambot",
-            "stopAtEntry": false,
-            "launchBrowser": {
-                "enabled": true
-            },
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "ASPNETCORE_AzureAppConfigConnectionString" : ""
-            },
-            "sourceFileMap": {
-                "/Views": "${workspaceFolder}/Views"
-            }
-        },
-        {
-            "name": "CurrentGames",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/CurrentGames/bin/Debug/netcoreapp3.0/CurrentGames.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/src/CurrentGames",
             "stopAtEntry": false,
             "launchBrowser": {
                 "enabled": true
