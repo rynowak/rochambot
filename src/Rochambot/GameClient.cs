@@ -19,6 +19,7 @@ namespace Rochambot
         private readonly IConfiguration _configuration;
         private readonly ILogger<GameClient> _logger;
         private readonly ITopicClient _matchmakingTopic;
+        private readonly ITopicClient _matchmakingSendTopic;
         private readonly ISubscriptionClient _matchmakingClient;
         private readonly ISessionClient _matchmakingSessionClient;
         private IMessageSession _matchmakingSession;
@@ -33,6 +34,9 @@ namespace Rochambot
             _matchmakingClient = new SubscriptionClient(_configuration["AzureServiceBusConnectionString"], "matchmaking", "webapp");
             _matchmakingSessionClient = new SessionClient(_configuration["AzureServiceBusConnectionString"], EntityNameHelper.FormatSubscriptionPath("matchmaking", "webapp"));
 
+            // team advised using a separate client for listening and sending
+            _matchmakingSendTopic = new TopicClient(_configuration["AzureServiceBusConnectionString"], "matchmaking");
+            
             Games = new List<Game>();
         }
 
@@ -41,15 +45,16 @@ namespace Rochambot
         public Opponent Opponent { get; private set; }
         public UserState UserState { get; set; }
         public event EventHandler OnStateChanged;
-
+        
         public async Task SetPlayerId(UserState userState)
         {
             if(UserState == null || (!UserState.DisplayName.Equals(userState.DisplayName)))
             {
                 UserState = userState;
                 _logger.LogInformation($"User {UserState.DisplayName} logged in");
-                _matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(UserState.DisplayName);
                 _matchmakingClient.RegisterSessionHandler(HandleMatchmakingMessage, HandleMatchmakingError);
+                _matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(UserState.DisplayName);
+                _logger.LogInformation($"Set up subscription session with session id {UserState.DisplayName}");
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -67,29 +72,34 @@ namespace Rochambot
 
             gameStartMessage.Label = "gamerequest";
             gameStartMessage.UserProperties.Add("gameId", gameId);
+            gameStartMessage.UserProperties.Add("gameready", false);
 
-            await _matchmakingTopic.SendAsync(gameStartMessage);
+            //await _matchmakingTopic.SendAsync(gameStartMessage);
+            await _matchmakingSendTopic.SendAsync(gameStartMessage);
 
             var game = new Game(gameId);
             this.Games.Add(game);
-
-            //var gameData = await _session.ReceiveAsync();
-
-            //Opponent = new Opponent(gameData.ReplyToSessionId);
-
-            //await _session.CompleteAsync(gameData.SystemProperties.LockToken);
         }
 
         private async Task HandleMatchmakingMessage(IMessageSession messageSession, Message message, CancellationToken cancellationToken)
         {
             var gameId = message.UserProperties["gameId"].ToString();
-            var oponentId = message.UserProperties["oponentId"].ToString();
+            var opponentId = message.UserProperties["opponentId"].ToString();
 
-            var game = Games.Single(x => x.Id == gameId);
-            game.MatchMade(oponentId);
-            _logger.LogInformation("MatchMade");
-            //await messageSession.CompleteAsync(message.SystemProperties.LockToken);
-            OnStateChanged?.Invoke(this, EventArgs.Empty);
+            _logger.LogInformation($"Matchmaking request from {UserState.DisplayName} accepted by {opponentId}");
+
+            if(!Games.Any(x => x.Id == gameId))
+            {
+                // message from expired game, bail out
+            }
+            else
+            {
+                Games.Single(x => x.Id == gameId).MatchMade(opponentId);
+                _logger.LogInformation("MatchMade");
+                OnStateChanged?.Invoke(this, EventArgs.Empty);
+
+                //await _matchmakingClient.CompleteAsync(message.SystemProperties.LockToken);
+            }
         }
 
         private Task HandleMatchmakingError(ExceptionReceivedEventArgs arg)
@@ -102,6 +112,7 @@ namespace Rochambot
         public async ValueTask DisposeAsync()
         {
             await _matchmakingTopic?.CloseAsync();
+            await _matchmakingSendTopic?.CloseAsync();
             await _matchmakingSessionClient?.CloseAsync();
             await _matchmakingClient?.CloseAsync();
         }

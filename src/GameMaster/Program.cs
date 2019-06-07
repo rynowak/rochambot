@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using System;
+using System.Net;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace GameMaster
 {
@@ -23,6 +25,14 @@ namespace GameMaster
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
+                    webBuilder.ConfigureKestrel(options => 
+                    {
+                        options.Listen(IPAddress.Any, 50051, listenOptions =>
+                        {
+                            listenOptions.Protocols = HttpProtocols.Http2;
+                        });
+                    });
+
                     webBuilder.UseStartup<Startup>();
                 });
     }

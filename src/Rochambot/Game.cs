@@ -14,12 +14,12 @@ namespace Rochambot
         }
 
         public string Id { get; }
-        public string OponentId { get; private set; }
+        public string OpponentId { get; private set; }
         public string CurrentStatus { get; private set; }
 
-        public void MatchMade(string oponentId)
+        public void MatchMade(string opponentId)
         {
-            OponentId = oponentId;
+            OpponentId = opponentId;
             SetStatus("Ready to start");
         }
 

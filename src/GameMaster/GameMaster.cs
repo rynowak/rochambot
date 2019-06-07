@@ -11,13 +11,17 @@ using Rochambot;
 
 namespace GameMaster
 {
-    public class GameMaster : BackgroundService
+    public class GameMaster : IHostedService
     {
-        private const string Name = nameof(GameMaster);
+        private const string MatchMakingTopic = "MatchmakingTopic";
+        private const string PlayTopic = "PlayTopic";
+        private const string AzureServiceBusConnectionString = "AzureServiceBusConnectionString";
+        private static string Name = nameof(GameMaster).ToLower();
         private readonly IConfiguration _configuration;
         private readonly ILogger<GameMaster> _logger;
         private readonly GameData _gameData;
         private ManagementClient _managementClient;
+        private ISubscriptionClient _matchmakingSubscriptionClient;
         private ISubscriptionClient _playSubscriptionClient;
         private TopicClient _playTopicClient;
 
@@ -30,82 +34,55 @@ namespace GameMaster
             _gameData = gameData;
         }
 
-        public override async Task StartAsync(CancellationToken token)
+        public async Task StartAsync(CancellationToken token)
         {
-            await VerifyGameMasterSubscriptionExists();
+            await VerifyMatchMakingSubscriptionExists();
 
-            _playSubscriptionClient = new SubscriptionClient(
-                _configuration["AzureServiceBusConnectionString"],
-                _configuration["PlayTopic"],
+            _matchmakingSubscriptionClient = new SubscriptionClient(
+                _configuration[GameMaster.AzureServiceBusConnectionString],
+                _configuration[GameMaster.MatchMakingTopic],
                 GameMaster.Name);
 
-            _playSubscriptionClient.RegisterMessageHandler(OnMessageReceived, 
+            _matchmakingSubscriptionClient.RegisterMessageHandler(OnMatchmakingMessageReceived, 
                 new MessageHandlerOptions(OnMessageHandlingException) 
                 {
                     AutoComplete = false,
                     MaxConcurrentCalls = 1
                 });
-
-            _playTopicClient = 
-                new TopicClient(
-                    _configuration["AzureServiceBusConnectionString"], 
-                    _configuration["PlayTopic"]);
-
-            await base.StartAsync(token);
         }
 
-        public override async Task StopAsync(CancellationToken token)
+        public async Task StopAsync(CancellationToken token)
         {
-            await _playSubscriptionClient.CloseAsync();
+            await _matchmakingSubscriptionClient.CloseAsync();
             await _managementClient.CloseAsync();
-            await _playTopicClient.CloseAsync();
-
-            await base.StopAsync(token);
         }
 
-        private async Task OnMessageReceived(Message message, CancellationToken token)
+        private async Task OnMatchmakingMessageReceived(Message message, CancellationToken token)
         {
             _logger.LogInformation($"Received message: {message.SystemProperties.SequenceNumber}");
 
-            var shape = message.UserProperties["Shape"].ToString();
-            var gameId = message.UserProperties["GameId"].ToString();
-            var playerId = message.UserProperties["From"].ToString();
-            Game game = null;
+            var gameId = message.UserProperties["gameId"].ToString();
+            var opponentId = message.UserProperties["opponentId"].ToString();
+            var playerId = message.SessionId;
 
-            if(!(await _gameData.GameExists(gameId)))
-                game = await _gameData.CreateGame(gameId);
-            else
-                game = await _gameData.GetGame(gameId);
+            if(!string.IsNullOrEmpty(playerId))
+            {
+                Game game = null;
 
-            if(_gameData.IsTurnComplete(game))
-            {
-                game = await _gameData.StartTurn(game.GameId, new Play
+                if(!(await _gameData.GameExists(playerId, gameId)))
                 {
-                    PlayerId = playerId, 
-                    ShapeSelected = Enum.Parse<Shape>(shape)
-                });
-            }
-            else
-            {
-                game = await _gameData.CompleteTurn(game.GameId, new Play
+                    game = await _gameData.CreateGame(playerId, gameId, opponentId);
+                    _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
+                }
+                else
                 {
-                    PlayerId = playerId, 
-                    ShapeSelected = Enum.Parse<Shape>(shape)
-                });
+                    game = await _gameData.GetGame(playerId, gameId);
+                    _logger.LogInformation($"Game retrieved for {playerId} to play {opponentId}");
+                    
+                }
             }
 
-            await ReplayOpponentPlay(message, game);
-        }
-
-        private async Task ReplayOpponentPlay(Message message, Game game)
-        {
-            var messageFromGameMaster = new Message();
-            messageFromGameMaster.UserProperties["GameId"] = message.UserProperties["GameId"];
-            messageFromGameMaster.UserProperties["To"] = message.UserProperties["Opponent"];
-            messageFromGameMaster.UserProperties["From"] = "GameMaster";
-            messageFromGameMaster.UserProperties["Opponent"] = message.UserProperties["From"];
-            await _playTopicClient.SendAsync(messageFromGameMaster);
-            await _playSubscriptionClient.CompleteAsync(message.SystemProperties.LockToken);
+            //await _matchmakingSubscriptionClient.CompleteAsync(message.SystemProperties.LockToken);
         }
 
         private Task OnMessageHandlingException(ExceptionReceivedEventArgs args)
@@ -114,25 +91,23 @@ namespace GameMaster
             return Task.CompletedTask;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        private async Task VerifyMatchMakingSubscriptionExists()
         {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                _logger.LogInformation("GameMaster running at {time}", DateTimeOffset.Now);
-                await Task.Delay(10000);
-            }
-        }
+            _managementClient = new ManagementClient(_configuration[GameMaster.AzureServiceBusConnectionString]);
 
-        private async Task VerifyGameMasterSubscriptionExists()
-        {
-            _managementClient = new ManagementClient(_configuration["AzureServiceBusConnectionString"]);
-
-            if (!await _managementClient.SubscriptionExistsAsync(_configuration["PlayTopic"], GameMaster.Name))
+            if (!await _managementClient.SubscriptionExistsAsync(_configuration[GameMaster.MatchMakingTopic], GameMaster.Name))
             {
                 await _managementClient.CreateSubscriptionAsync
                 (
-                    new SubscriptionDescription(_configuration["PlayTopic"], GameMaster.Name),
-                    new RuleDescription($"gamemasterrule", new SqlFilter($"To = 'GameMaster'"))
+                    new SubscriptionDescription(_configuration[GameMaster.MatchMakingTopic], GameMaster.Name)
+                    {
+                        DefaultMessageTimeToLive = TimeSpan.FromMinutes(2),
+                        MaxDeliveryCount = 3
+                    },
+                    new RuleDescription($"gamereadyrule", new CorrelationFilter
+                    {
+                        Label = "gameready"
+                    })
                 );
             }
         }

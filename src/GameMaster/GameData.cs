@@ -1,5 +1,6 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
+using Rochambot;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,78 +22,103 @@ namespace GameMaster
             _gamesContainer = _cosmosClient.Databases["Rochambot"].Containers["Games"];
         }
 
-        public async Task<bool> GameExists(string gameId)
+        public async Task<bool> GameExists(string playerId, string gameId)
         {
-            var response = await _gamesContainer.Items.ReadItemAsync<Game>(gameId, gameId);
+            var response = await _gamesContainer.Items.ReadItemAsync<Game>(playerId, gameId);
             return response.StatusCode == HttpStatusCode.Found;
         }
 
-        public async Task<Game> CreateGame(string gameId)
+        public async Task<Game> CreateGame(string playerId, string gameId, string opponentId)
         {
-            await _gamesContainer.Items.CreateItemAsync<Game>(gameId, new Game { GameId = gameId });
-            return await GetGame(gameId);
+            await _gamesContainer.Items.CreateItemAsync<Game>(playerId, new Game 
+            { 
+                GameId = gameId, 
+                PlayerId = playerId, 
+                OpponentId = opponentId, 
+                DateStarted = DateTime.UtcNow
+            });
+            return await GetGame(playerId, gameId);
         }
 
-        public async Task<Game> GetGame(string gameId)
+        public async Task<Game> GetGame(string playerId, string gameId)
         {
-            var game = await _gamesContainer.Items.ReadItemAsync<Game>(gameId, gameId);
+            var game = await _gamesContainer.Items.ReadItemAsync<Game>(playerId, gameId);
             return game.Resource;
         }
 
         public bool IsGameComplete(Game game)
         {
-            if(game.Turns == null || game.Turns.Count() == 0) return false;
+            if(game.Rounds == null || game.Rounds.Count() == 0) return false;
 
-            var player1wins = game.Turns.Where(x => x.Player1.IsWinner).Count();
-            var player2wins = game.Turns.Where(x => x.Player2.IsWinner).Count();
+            var playerWins = game.Rounds.Where(x => x.PlayerWins).Count();
+            var opponentWins = game.Rounds.Where(x => !x.PlayerWins).Count();
 
-            return (player1wins >= game.NumberOfTurnsNeededToWin) || (player2wins >= game.NumberOfTurnsNeededToWin);
+            return (playerWins >= game.NumberOfTurnsNeededToWin) || (opponentWins >= game.NumberOfTurnsNeededToWin);
         }
 
-        public async Task<Game> StartTurn(string gameId, Play play)
+        public bool IsCurrentRoundComplete(Game game)
         {
-            var game = await GetGame(gameId);
-            if(game.Turns == null || game.Turns.Count() == 0)
-                game.Turns = new List<Turn>().ToArray();
-            var turns = game.Turns.ToList();
-            turns.Add(new Turn { Player1 = play });
-            game.Turns = turns.ToArray();
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
+            if(game.Rounds == null || !game.Rounds.Any()) return true; // this is a new game, start a new turn
+            return (game.Rounds.Last().PlayerShape.HasValue && game.Rounds.Last().OpponentShape.HasValue);
+        }
+
+        public async Task<Game> PlayerTurn(string playerId, string gameId, Shape shape)
+        {
+            var game = await GetGame(playerId, gameId);
+
+            if(IsCurrentRoundComplete(game))
+            {
+                game.Rounds.Add(new Round 
+                {
+                    RoundStarted = DateTime.UtcNow
+                });
+            }
+
+            game.Rounds.Last().PlayerShape = shape;
+
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
             return game;
         }
 
-        public bool IsTurnComplete(Game game)
+        public async Task<Game> OpponentTurn(string playerId, string gameId, Shape shape)
         {
-            if(game.Turns == null || !game.Turns.Any()) return true; // this is a new game, start a new turn
-            return (game.Turns.Last().Player1 != null 
-                && game.Turns.Last().Player2 == null); // player 1 went, player 2 didn't, return false
+            var game = await GetGame(playerId, gameId);
+
+            if(IsCurrentRoundComplete(game))
+            {
+                game.Rounds.Add(new Round 
+                {
+                    RoundStarted = DateTime.UtcNow
+                });
+            }
+
+            game.Rounds.Last().OpponentShape = shape;
+
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
+            return game;
         }
 
-        public async Task<Game> CompleteTurn(string gameId, Play play)
+        public async Task<Game> SaveScore(string playerId, string gameId)
         {
-            var game = await GetGame(gameId);
-            var turns = game.Turns.ToList();
+            var game = await GetGame(playerId, gameId);
             
-            turns.Last().Player2 = play;
-            turns.Last().TurnEnded = DateTime.Now;
-            turns.Last().DetermineScore();
-            game.Turns = turns.ToArray();
+            game.Rounds.Last().DetermineScore();
 
             if(IsGameComplete(game))
             {
-                var player1wins = game.Turns.Where(x => x.Player1.IsWinner).Count();
-                var player2wins = game.Turns.Where(x => x.Player2.IsWinner).Count();
-                if(player1wins > player2wins) game.WinnerPlayerId = game.Turns[0].Player1.PlayerId;
-                else game.WinnerPlayerId = game.Turns[0].Player2.PlayerId;
+                var playerWins = game.Rounds.Where(x => x.PlayerWins).Count();
+                var opponentWins = game.Rounds.Where(x => !x.PlayerWins).Count();
+                if(playerWins > opponentWins) game.Winner = game.PlayerId;
+                else game.Winner = game.OpponentId;
             }
 
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
             return game;
         }
 
         public async Task<IEnumerable<Game>> GetGamesForPlayer(string playerId)
         {
-            var sqlQueryText = "SELECT * FROM c WHERE c.LastName = '" + playerId + "'";
+            var sqlQueryText = "SELECT * FROM g WHERE g.PlayerId = '" + playerId + "'";
 
             CosmosSqlQueryDefinition queryDefinition = new CosmosSqlQueryDefinition(sqlQueryText);
             CosmosResultSetIterator<Game> queryResultSetIterator = 

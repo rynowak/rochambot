@@ -18,7 +18,6 @@ namespace RobbyBot
 
         public GameRequestHandler(ILogger<GameRequestHandler> logger, IConfiguration configuration)
         {
-
             _logger = logger;
             _configuration = configuration;
             _botId = _configuration["BotId"];
@@ -35,27 +34,23 @@ namespace RobbyBot
 
             _botRequestQueue.RegisterMessageHandler(ReceivedGameRequestAsync, ReceivedGameRequestErrorAsync);
 
-            //await _botRequestQueue.AddRuleAsync("requestRule", new CorrelationFilter
-            //{
-            //    Label = "gamerequest"
-            //});
-
             return Task.CompletedTask;
         }
 
         private async Task ReceivedGameRequestAsync(Message message, CancellationToken _)
         {
+            _logger.LogInformation($"Player {message.SessionId} requested game, {_botId} accepted.");
+
             var msg = new Message
             {
-                SessionId = message.ReplyToSessionId
+                SessionId = message.ReplyToSessionId,
+                Label = "gameready"
             };
-            msg.Label = "gameready";
+            
             msg.UserProperties.Add("gameId", message.UserProperties["gameId"]);
-            msg.UserProperties.Add("oponentId", _botId);
+            msg.UserProperties.Add("opponentId", _botId);
 
             await _botResponseQueue.SendAsync(msg);
-            //TODO: Looks like the default for topics is to handle them when they are processed
-            //This might be OK for now but we should think about it.
             //await _botRequestQueue.CompleteAsync(message.SystemProperties.LockToken);
         }
 
