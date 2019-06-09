@@ -23,6 +23,8 @@ namespace Rochambot
         private readonly ISubscriptionClient _matchmakingClient;
         private readonly ISessionClient _matchmakingSessionClient;
         private IMessageSession _matchmakingSession;
+        private ManagementClient _managementClient;
+        private bool _alreadyVerified;
 
         public GameClient(IConfiguration configuration,
                           ILogger<GameClient> logger)
@@ -73,21 +75,23 @@ namespace Rochambot
             gameStartMessage.Label = "gamerequest";
             gameStartMessage.UserProperties.Add("gameId", gameId);
             gameStartMessage.UserProperties.Add("gameready", false);
+            
+            var game = new Game(gameId);
+            this.Games.Add(game);
 
             //await _matchmakingTopic.SendAsync(gameStartMessage);
             await _matchmakingSendTopic.SendAsync(gameStartMessage);
-
-            var game = new Game(gameId);
-            this.Games.Add(game);
         }
 
         private async Task HandleMatchmakingMessage(IMessageSession messageSession, Message message, CancellationToken cancellationToken)
         {
+            await VerifyPlayReceivedSubscriptionExists();
+
             var gameId = message.UserProperties["gameId"].ToString();
             var opponentId = message.UserProperties["opponentId"].ToString();
 
             _logger.LogInformation($"Matchmaking request from {UserState.DisplayName} accepted by {opponentId}");
-
+            
             if(!Games.Any(x => x.Id == gameId))
             {
                 // message from expired game, bail out
@@ -97,7 +101,6 @@ namespace Rochambot
                 Games.Single(x => x.Id == gameId).MatchMade(opponentId);
                 _logger.LogInformation("MatchMade");
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
-
                 //await _matchmakingClient.CompleteAsync(message.SystemProperties.LockToken);
             }
         }
@@ -115,6 +118,35 @@ namespace Rochambot
             await _matchmakingSendTopic?.CloseAsync();
             await _matchmakingSessionClient?.CloseAsync();
             await _matchmakingClient?.CloseAsync();
+        }
+
+        private async Task VerifyPlayReceivedSubscriptionExists()
+        {
+            if(_alreadyVerified == true) await Task.FromResult(0);
+
+            _managementClient = new ManagementClient(_configuration["AzureServiceBusConnectionString"]);
+
+            if(!await _managementClient.TopicExistsAsync(_configuration["PlayTopic"]))
+            {
+                await _managementClient.CreateTopicAsync(new TopicDescription(_configuration["PlayTopic"])
+                {
+                    SupportOrdering = true
+                });
+
+            if (!await _managementClient.SubscriptionExistsAsync(_configuration["PlayTopic"], "playreceived"))
+            {
+                await _managementClient.CreateSubscriptionAsync
+                (
+                    new SubscriptionDescription(_configuration["PlayTopic"], "playreceived")
+                    {
+                        DefaultMessageTimeToLive = TimeSpan.FromMinutes(2),
+                        MaxDeliveryCount = 3,
+                        RequiresSession = true
+                    }
+                );
+            }
+
+            _alreadyVerified = true;
         }
     }
 }
