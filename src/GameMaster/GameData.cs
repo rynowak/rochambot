@@ -52,8 +52,13 @@ namespace GameMaster
 
             var playerWins = game.Rounds.Where(x => x.PlayerWins).Count();
             var opponentWins = game.Rounds.Where(x => !x.PlayerWins).Count();
+            
+            var ties = game.Rounds.Where(x => 
+                (x.PlayerShape.HasValue && x.OpponentShape.HasValue) 
+                && (x.PlayerShape.Value == x.OpponentShape.Value)).Count();
 
-            return (playerWins >= game.NumberOfTurnsNeededToWin) || (opponentWins >= game.NumberOfTurnsNeededToWin);
+            return (playerWins >= game.NumberOfTurnsNeededToWin) 
+                || (opponentWins >= game.NumberOfTurnsNeededToWin);
         }
 
         public bool IsCurrentRoundComplete(Game game)
@@ -62,7 +67,7 @@ namespace GameMaster
             return (game.Rounds.Last().PlayerShape.HasValue && game.Rounds.Last().OpponentShape.HasValue);
         }
 
-        public async Task<Game> PlayerTurn(string playerId, string gameId, Shape shape)
+        public async Task<Game> MakeMove(string playerId, string gameId, Shape shape)
         {
             var game = await GetGame(playerId, gameId);
 
@@ -74,31 +79,20 @@ namespace GameMaster
                 });
             }
 
-            game.Rounds.Last().PlayerShape = shape;
-
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
-            return game;
-        }
-
-        public async Task<Game> OpponentTurn(string playerId, string gameId, Shape shape)
-        {
-            var game = await GetGame(playerId, gameId);
-
-            if(IsCurrentRoundComplete(game))
+            if(game.PlayerId == playerId) // player moved
             {
-                game.Rounds.Add(new Round 
-                {
-                    RoundStarted = DateTime.UtcNow
-                });
+                game.Rounds.Last().PlayerShape = shape;
             }
-
-            game.Rounds.Last().OpponentShape = shape;
-
+            else // opponent moved
+            {
+                game.Rounds.Last().OpponentShape = shape;
+            }
+            
             await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
             return game;
         }
 
-        public async Task<Game> SaveScore(string playerId, string gameId)
+        public async Task<Round> SaveScore(string playerId, string gameId)
         {
             var game = await GetGame(playerId, gameId);
             
@@ -113,7 +107,7 @@ namespace GameMaster
             }
 
             await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
-            return game;
+            return game.Rounds.Last();
         }
 
         public async Task<IEnumerable<Game>> GetGamesForPlayer(string playerId)
