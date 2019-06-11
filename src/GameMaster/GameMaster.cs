@@ -82,57 +82,42 @@ namespace GameMaster
             {
                 Message resultMessage1 = null;
                 Message resultMessage2 = null;
-                lock (_lock)
+                var gameId = message.UserProperties["gameId"].ToString();
+                
+                var playerId = message.ReplyToSessionId; // todo: we'll need to add a userproperty of the player who MADE this move
+                var game = await _gameData.GetGame(playerId, gameId);
+                if (game == null)
                 {
-                    var gameId = message.UserProperties["gameId"].ToString();
-                    var game = _games.FirstOrDefault(x => x.GameId == gameId);
-                    var playerId = message.ReplyToSessionId;
-                    if (game == null)
-                    {
-                        throw new Exception("Out of order messages");
-                    }
+                    throw new Exception("Out of order messages");
+                }
+                var shape = JsonSerializer.Parse<Shape>(message.Body);
+                await _gameData.MakeMove(playerId, gameId, shape);
 
-                    var round = game.Rounds.FirstOrDefault(x => x.RoundEnded == DateTime.MinValue);
-                    if (round == null)
-                    {
-                        round = new Round();
-                        game.Rounds.Add(round);
-                    }
+                if (_gameData.IsCurrentRoundComplete(game))
+                {
+                    var round = await _gameData.SaveScore(playerId, gameId);
 
-                    if (playerId == game.PlayerId)
+                    resultMessage1 = new Message
                     {
-                        round.PlayerShape = JsonSerializer.Parse<Shape>(message.Body);
+                        SessionId = game.PlayerId,
+                        Body = JsonSerializer.ToBytes(round)
+                    };
+
+                    resultMessage1.UserProperties.Add("gameId", game.GameId);
+
+                    if (_gameData.IsGameComplete(game))
+                    {
+                        resultMessage1.Label = "GameComplete";
                     }
                     else
                     {
-                        round.OpponentShape = JsonSerializer.Parse<Shape>(message.Body);
-                    }
-
-                    if (_gameData.IsCurrentRoundComplete(game))
-                    {
-                        round.RoundEnded = DateTime.Now;
-                        round = round.DetermineScore();
-
-                        resultMessage1 = new Message
+                        resultMessage2 = new Message
                         {
-                            SessionId = game.PlayerId,
+                            SessionId = game.OpponentId,
                             Body = JsonSerializer.ToBytes(round)
                         };
-                        resultMessage1.UserProperties.Add("gameId", game.GameId);
-
-                        if (_gameData.IsGameComplete(game))
-                        {
-                            resultMessage1.Label = "GameComplete";
-                        }
-                        else
-                        {
-                            resultMessage2 = new Message
-                            {
-                                SessionId = game.OpponentId,
-                                Body = JsonSerializer.ToBytes(round)
-                            };
-                            resultMessage2.UserProperties.Add("gameId", game.GameId);
-                        }
+                        
+                        resultMessage2.UserProperties.Add("gameId", game.GameId);
                     }
                 }
 
@@ -162,58 +147,42 @@ namespace GameMaster
             await _managementClient?.CloseAsync();
         }
 
-        private Task OnMatchmakingMessageReceived(IMessageSession session, Message message, CancellationToken arg3)
+        private async Task OnMatchmakingMessageReceived(IMessageSession session, Message message, CancellationToken arg3)
         {
             try
             {
-                lock (_lock)
+                _logger.LogInformation($"Received message: {message.SystemProperties.SequenceNumber}");
+
+                var gameId = message.UserProperties["gameId"].ToString();
+                var opponentId = message.UserProperties["opponentId"].ToString();
+                var playerId = message.SessionId;
+
+                if (!string.IsNullOrEmpty(playerId))
                 {
-                    _logger.LogInformation($"Received message: {message.SystemProperties.SequenceNumber}");
+                    Game game = null;
 
-                    var gameId = message.UserProperties["gameId"].ToString();
-                    var opponentId = message.UserProperties["opponentId"].ToString();
-                    var playerId = message.SessionId;
-
-                    if (!string.IsNullOrEmpty(playerId))
+                    game = new Game
                     {
-                        Game game = null;
-
-                        game = new Game
-                        {
-                            GameId = gameId,
-                            PlayerId = playerId,
-                            OpponentId = opponentId,
-                            DateStarted = DateTime.UtcNow
-                        };
-                        _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
+                        GameId = gameId,
+                        PlayerId = playerId,
+                        OpponentId = opponentId,
+                        DateStarted = DateTime.UtcNow
+                    };
+                    _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
 
 
-                        //if (!(await _gameData.GameExists(playerId, gameId)))
-                        //{
-                        //    //game = await _gameData.CreateGame(playerId, gameId, opponentId);
-                        //    game = new Game
-                        //    {
-                        //        GameId = gameId,
-                        //        PlayerId = playerId,
-                        //        OpponentId = opponentId,
-                        //        DateStarted = DateTime.UtcNow
-                        //    };
-                        //    _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
-                        //}
-                        //else
-                        //{
-                        //    //game = await _gameData.GetGame(playerId, gameId);
-                        //    game = new Game
-                        //    {
-                        //        GameId = gameId,
-                        //        PlayerId = playerId,
-                        //        DateStarted = DateTime.UtcNow
-                        //    };
-                        //    _logger.LogInformation($"Game retrieved for {playerId} to play {opponentId}");
-                        //}
-
-                        _games.Add(game);
+                    if (!(await _gameData.GameExists(playerId, gameId)))
+                    {
+                        game = await _gameData.CreateGame(playerId, gameId, opponentId);
+                       _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
                     }
+                    else
+                    {
+                       game = await _gameData.GetGame(playerId, gameId);
+                       _logger.LogInformation($"Game retrieved for {playerId} to play {opponentId}");
+                    }
+
+                    _games.Add(game);
                 }
                 //await session.CompleteAsync(message.SystemProperties.LockToken);
             }
@@ -221,7 +190,6 @@ namespace GameMaster
             {
                 _logger.LogError("Unknown error in matchmaking", ex);
             }
-            return Task.CompletedTask;
         }
 
         private Task OnMessageHandlingException(ExceptionReceivedEventArgs args)

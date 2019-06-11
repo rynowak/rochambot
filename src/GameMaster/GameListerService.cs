@@ -8,11 +8,27 @@ namespace GameMaster
 {
     public class GameListerService : GameLister.GameListerBase
     {
-        public override Task<GameListReply> GetGameList(GameListRequest request, ServerCallContext context)
+        public GameListerService(GameData gameData)
         {
-            return Task.FromResult(new GameListReply
+            GameData = gameData;
+        }
+
+        public GameData GameData { get; }
+
+        public override async Task<GameListReply> GetGameList(GameListRequest request, ServerCallContext context)
+        {
+            var results = await GameData.GetGamesForPlayer(request.Player);
+            var reply = new GameListReply();
+            foreach (var result in results)
             {
-            });
+                reply.Games.Add(new GameItem
+                {
+                    GameId = result.GameId,
+                    Opponent = result.OpponentId, 
+                    Player = request.Player
+                });
+            }
+            return reply;
         }
     }
 }
