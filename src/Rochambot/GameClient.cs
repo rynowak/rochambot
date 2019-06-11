@@ -19,6 +19,8 @@ using System.Security.Cryptography.Xml;
 using System.Runtime.InteropServices.ComTypes;
 using Microsoft.Rest.Serialization;
 using System.Runtime.InteropServices;
+using Grpc.Core;
+using GameMaster;
 
 namespace Rochambot
 {
@@ -39,6 +41,9 @@ namespace Rochambot
         private readonly CancellationTokenSource _stoppingCts = new CancellationTokenSource();
         private Task _resultsTask;
         private Task _matchmakingTask;
+
+        public Channel Channel { get; private set; }
+        public GameLister.GameListerClient GameListerClient { get; private set; }
 
         public GameClient(IConfiguration configuration,
                           ILogger<GameClient> logger)
@@ -79,6 +84,18 @@ namespace Rochambot
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
                 _resultsTask = HandleResults();
                 _matchmakingTask = HandleMatchmaking();
+
+                Channel = new Channel("localhost:50051", ChannelCredentials.Insecure);
+                GameListerClient = new GameMaster.GameLister.GameListerClient(Channel);
+                var games = await GameListerClient.GetGameListAsync(new GameListRequest
+                {
+                    Player = UserState.DisplayName
+                });
+                Games.Clear();
+                foreach (var game in games.Games)
+                {
+                    // todo: temporary until we work on the viewmodel
+                }
             }
         }
 

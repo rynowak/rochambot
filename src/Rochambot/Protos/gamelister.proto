@@ -15,9 +15,22 @@ message GameListRequest {
 
 // a game item
 message GameItem {
-  string gameId = 1;
-  string player = 2;
-  string opponent = 3;
+  string Id = 1;
+  string OpponentId = 2;
+  bool ReadyToPlay = 3;
+  bool PlayMade = 4;
+  bool GameOver = 5;
+  repeated RoundItem Rounds = 6;
+  string PlayerId = 7;
+}
+
+// a round item
+message RoundItem {
+  string PlayerShape = 1;
+  string OpponentShape = 2;
+  string Summary = 3;
+  bool PlayerWins = 4;
+  bool Completed = 5;
 }
 
 // response message containing the game list
