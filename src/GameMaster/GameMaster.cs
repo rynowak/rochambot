@@ -82,8 +82,7 @@ namespace GameMaster
             {
                 Message resultMessage1 = null;
                 Message resultMessage2 = null;
-                var gameId = message.UserProperties["gameId"].ToString();
-                
+                var gameId = message.UserProperties["gameId"].ToString();   
                 var playerId = message.ReplyToSessionId; // todo: we'll need to add a userproperty of the player who MADE this move
                 var game = await _gameData.GetGame(gameId);
                 if (game == null)
@@ -115,41 +114,28 @@ namespace GameMaster
                         round.OpponentShape = JsonSerializer.Parse<Shape>(message.Body);
                     }
 
-                    if (_gameData.IsCurrentRoundComplete(game))
+                    if (_gameData.IsGameComplete(game))
                     {
-                        round.RoundEnded = DateTime.Now;
-                        round = round.DetermineScore();
+                        round.Completed = true;
+                    }
 
-                        if (_gameData.IsGameComplete(game))
-                        {
-                            round.Completed = true;
-                        }
+                    resultMessage1 = new Message
+                    {
+                        SessionId = game.PlayerId,
+                        To = game.PlayerId,
+                        Label = "PlayerMove",
+                        Body = JsonSerializer.ToBytes(round)
+                    };
+                    resultMessage1.UserProperties.Add("gameId", game.GameId);
 
-                        resultMessage1 = new Message
-                        {
-                            SessionId = game.PlayerId,
-                            To = game.PlayerId,
-                            Label = "PlayerMove",
-                            Body = JsonSerializer.ToBytes(round)
-                        };
-                        resultMessage1.UserProperties.Add("gameId", game.GameId);
-
-                        if(!round.Completed)
-                        {
-                            resultMessage2 = new Message
-                            {
-                                To = game.OpponentId,
-                                SessionId = game.OpponentId,
-                                Body = JsonSerializer.ToBytes(round)
-                            };
-                            resultMessage2.UserProperties.Add("gameId", game.GameId);
-                        }
+                    if(!round.Completed)
+                    {
                         resultMessage2 = new Message
                         {
+                            To = game.OpponentId,
                             SessionId = game.OpponentId,
                             Body = JsonSerializer.ToBytes(round)
                         };
-                        
                         resultMessage2.UserProperties.Add("gameId", game.GameId);
                     }
                 }
@@ -194,19 +180,6 @@ namespace GameMaster
                 {
                     Game game = await _gameData.CreateGame(playerId, gameId, opponentId);;
                     _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
-
-
-                    if (!(await _gameData.GameExists(gameId)))
-                    {
-                        game = await _gameData.CreateGame(playerId, gameId, opponentId);
-                       _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
-                    }
-                    else
-                    {
-                       game = await _gameData.GetGame(gameId);
-                       _logger.LogInformation($"Game retrieved for {playerId} to play {opponentId}");
-                    }
-
                     _games.Add(game);
                 }
                 //await session.CompleteAsync(message.SystemProperties.LockToken);
