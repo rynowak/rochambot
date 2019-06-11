@@ -111,6 +111,7 @@ namespace Rochambot
         private async Task HandleMatchmakingMessage(Message message)
         {
             var gameId = message.UserProperties["gameId"].ToString();
+            var opponentId = message.UserProperties["opponentId"].ToString();
 
             var game = Games.FirstOrDefault(x => x.Id == gameId);
 
@@ -118,7 +119,7 @@ namespace Rochambot
             {
                 _logger.LogInformation($"Matchmaking request from {UserState.DisplayName} accepted by {game.OpponentId}");
 
-                game.MatchMade(game.OpponentId);
+                game.MatchMade(opponentId);
                 _logger.LogInformation("MatchMade");
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
             }
