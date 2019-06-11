@@ -8,6 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Protobuf Include="Protos\gamelister.proto" GrpcServices="Client" />
+    <Content Include="@(Protobuf)" />
+    <None Remove="@(Protobuf)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="3.0.0-preview5-*" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Twitter" Version="3.0.0-preview5-*" />
     <PackageReference Include="Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="1.0.0-preview-008520001" />
@@ -22,5 +28,13 @@
 
   <Import Project="..\Rochambot.Shared\Rochambot.Shared.projitems" Label="Shared" />
 
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.7.0" />
+    <PackageReference Include="Grpc.Core" Version="1.20.1" />
+    <PackageReference Include="Grpc.Tools" Version="1.20.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
 
 </Project>

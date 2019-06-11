@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package GameMaster;
+
+// The game list service definition.
+service GameLister {
+  // gets a game list
+  rpc GetGameList (GameListRequest) returns (GameListReply) {}
+}
+
+// the request for a player's games
+message GameListRequest {
+  string player = 1;
+}
+
+// a game item
+message GameItem {
+  string gameId = 1;
+  string player = 2;
+  string opponent = 3;
+}
+
+// response message containing the game list
+message GameListReply {
+  repeated GameItem games = 1;
+}
