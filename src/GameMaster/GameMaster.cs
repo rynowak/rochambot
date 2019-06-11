@@ -161,7 +161,6 @@ namespace GameMaster
         {
             await _matchmakingSessionClient?.CloseAsync();
             await _playSubscriptionClient?.CloseAsync();
-            //await _matchmakingSession?.CloseAsync();
             await _matchmakingSubscriptionClient?.CloseAsync();
             await _managementClient?.CloseAsync();
         }
@@ -182,7 +181,6 @@ namespace GameMaster
                     _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
                     _games.Add(game);
                 }
-                //await session.CompleteAsync(message.SystemProperties.LockToken);
             }
             catch (Exception ex)
             {

@@ -29,7 +29,6 @@ namespace Rochambot
         private readonly ITopicClient _matchmakingTopic;
         private readonly ITopicClient _matchmakingSendTopic;
         private readonly ITopicClient _playTopic;
-        private readonly SubscriptionClient _resultsSubscription;
         private readonly SessionClient _resultsSessionClient;
         private readonly ISubscriptionClient _matchmakingClient;
         private readonly ISessionClient _matchmakingSessionClient;
@@ -56,7 +55,6 @@ namespace Rochambot
 
             _playTopic = new TopicClient(_configuration["AzureServiceBusConnectionString"], _configuration["PlayTopic"]);
 
-            _resultsSubscription = new SubscriptionClient(_configuration["AzureServiceBusConnectionString"], "results", "players");
             _resultsSessionClient = new SessionClient(_configuration["AzureServiceBusConnectionString"], EntityNameHelper.FormatSubscriptionPath("results", "players"));
             Games = new List<Game>();
         }
@@ -71,12 +69,12 @@ namespace Rochambot
         {
             if (UserState == null || (!UserState.DisplayName.Equals(userState.DisplayName)))
             {
-                //userHash = Encoding.UTF8.GetString(SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(userState.DisplayName)));
                 UserState = userState;
                 _logger.LogInformation($"User {UserState.DisplayName} logged in");
 
                 _resultsSession = await _resultsSessionClient.AcceptMessageSessionAsync(userState.DisplayName);
                 _matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(userState.DisplayName);
+
                 _logger.LogInformation($"Set up subscription session with session id {userState.DisplayName}");
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
                 _resultsTask = HandleResults();
@@ -108,7 +106,7 @@ namespace Rochambot
             }
         }
 
-        private async Task HandleMatchmakingMessage(Message message)
+        private Task HandleMatchmakingMessage(Message message)
         {
             var gameId = message.UserProperties["gameId"].ToString();
             var opponentId = message.UserProperties["opponentId"].ToString();
@@ -127,9 +125,10 @@ namespace Rochambot
             {
                 _logger.LogInformation("Skipping message for game {gameId} as we have no game associated with that id.", game.Id);
             }
+            return Task.CompletedTask;
         }
 
-        private async Task HandleResultsMessage(Message message)
+        private Task HandleResultsMessage(Message message)
         {
             try
             {
@@ -149,6 +148,7 @@ namespace Rochambot
             {
                 _logger.LogError("Error handling result {ex}", ex);
             }
+            return Task.CompletedTask;
         }
 
         public async Task RequestGameAsync()
@@ -197,7 +197,6 @@ namespace Rochambot
             await _playTopic?.CloseAsync();
             await _resultsSession?.CloseAsync();
             await _resultsSessionClient?.CloseAsync();
-            await _resultsSubscription?.CloseAsync();
             await _matchmakingTopic?.CloseAsync();
             await _matchmakingSendTopic?.CloseAsync();
             await _matchmakingSessionClient?.CloseAsync();
