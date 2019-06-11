@@ -15,11 +15,11 @@ namespace Rochambot
             Rounds = new List<Round>();
         }
 
-        public string Id { get; }
-        public string OpponentId { get; private set; }
+        public string Id { get; set; }
+        public string OpponentId { get; set; }
 
         //TODO: Should prob collapse Status into enum instead of string with bools.
-        public string CurrentStatus { get; private set; }
+        public string CurrentStatus { get; set; }
         public bool ReadyToPlay { get; set; }
         public bool PlayMade { get; set; }
 

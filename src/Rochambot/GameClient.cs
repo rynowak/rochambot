@@ -89,17 +89,36 @@ namespace Rochambot
                 {
                     await Channel.ShutdownAsync();
                 }
-                Channel = new Channel("localhost:50051", ChannelCredentials.Insecure);
+                Channel = new Channel(_configuration["GameMasterUri"], ChannelCredentials.Insecure);
                 GameListerClient = new GameMaster.GameLister.GameListerClient(Channel);
                 var games = await GameListerClient.GetGameListAsync(new GameListRequest
                 {
                     Player = UserState.DisplayName
                 });
-                Console.WriteLine($"Player {UserState.DisplayName} has {games.Games.Count} games");
-                Games.Clear();
+
                 foreach (var game in games.Games)
                 {
-                    // todo: temporary until we work on the viewmodel
+                    var newGame = new Game(game.Id)
+                    {
+                        CurrentStatus = "Loaded.",
+                        GameOver = game.GameOver,
+                        Id = game.Id,
+                        OpponentId = game.OpponentId,
+                        ReadyToPlay = true,
+                    };
+                    foreach (var round in game.Rounds)
+                    {
+                        newGame.Rounds.Add(new Round()
+                        {
+                            Completed = round.Completed,
+                            OpponentShape = Enum.Parse<Shape>(round.OpponentShape),
+                            PlayerShape = Enum.Parse<Shape>(round.PlayerShape),
+                            PlayerWins = round.PlayerWins,
+                            Summary = round.Summary
+                        });
+                    }
+                    Games.Add(newGame);
+                    OnStateChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
         }

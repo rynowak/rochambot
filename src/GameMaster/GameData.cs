@@ -128,7 +128,6 @@ namespace GameMaster
                 CosmosQueryResponse<Game> currentResultSet = await queryResultSetIterator.FetchNextSetAsync();
                 foreach (Game game in currentResultSet)
                 {
-                    Console.WriteLine("\tRead {0}\n", game);
                     games.Add(game);
                 }
             }
