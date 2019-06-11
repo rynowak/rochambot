@@ -72,8 +72,6 @@ namespace GameMaster
             throw new NotImplementedException();
         }
 
-        private object _lock = new object();
-        private IMessageSession _matchmakingSession;
         private TopicClient _resultsTopic;
 
         private async Task HandlePlayMessage(Message message, CancellationToken arg3)
@@ -91,33 +89,11 @@ namespace GameMaster
                 }
                 await _playSubscriptionClient.CompleteAsync(message.SystemProperties.LockToken);
                 var shape = JsonSerializer.Parse<Shape>(message.Body);
-                await _gameData.MakeMove(playerId, gameId, shape);
+                game = await _gameData.MakeMove(playerId, gameId, shape);
 
                 if (_gameData.IsCurrentRoundComplete(game))
                 {
                     var round = await _gameData.SaveScore(playerId, gameId);
-
-                    resultMessage1 = new Message
-                    {
-                        SessionId = game.PlayerId,
-                        Body = JsonSerializer.ToBytes(round)
-                    };
-
-                    resultMessage1.UserProperties.Add("gameId", game.GameId);
-
-                    if (_gameData.IsGameComplete(game))
-                    {
-                        resultMessage1.Label = "GameComplete";
-                    }
-                    else
-                    {
-                        round.OpponentShape = JsonSerializer.Parse<Shape>(message.Body);
-                    }
-
-                    if (_gameData.IsGameComplete(game))
-                    {
-                        round.Completed = true;
-                    }
 
                     resultMessage1 = new Message
                     {
@@ -128,7 +104,11 @@ namespace GameMaster
                     };
                     resultMessage1.UserProperties.Add("gameId", game.GameId);
 
-                    if(!round.Completed)
+                    if (_gameData.IsGameComplete(game))
+                    {
+                        resultMessage1.UserProperties.Add("Complete", "True");
+                    }
+                    else
                     {
                         resultMessage2 = new Message
                         {
