@@ -11,5 +11,6 @@ namespace GameMaster
         public DateTime RoundStarted { get; set; }
         public DateTime RoundEnded { get; set; }
         public bool PlayerWins { get; set; }
+        public bool Completed { get; set; }
     }
 }

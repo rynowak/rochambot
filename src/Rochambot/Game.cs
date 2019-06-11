@@ -31,7 +31,7 @@ namespace Rochambot
         {
             get
             {
-                return !(ReadyToPlay || GameOver);
+                return GameOver || PlayMade;
             }
         }
 
@@ -56,5 +56,6 @@ namespace Rochambot
         //public DateTime RoundStarted { get; set; }
         //public DateTime RoundEnded { get; set; }
         public bool PlayerWins { get; set; }
+        public bool Completed { get; set; }
     }
 }

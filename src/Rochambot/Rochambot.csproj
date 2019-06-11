@@ -16,6 +16,10 @@
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.7.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="GameMasterClient\" />
+  </ItemGroup>
+
   <Import Project="..\Rochambot.Shared\Rochambot.Shared.projitems" Label="Shared" />
 
 

@@ -42,7 +42,6 @@ namespace Rochambot
                     microsoftOptions.ClientSecret = Configuration["MicrosoftAppPassword"];
                 })
                 ;
-
             services.AddScoped<HttpClient>(s =>
             {
                 // Creating the URI helper needs to wait until the JS Runtime is initialized, so defer it.

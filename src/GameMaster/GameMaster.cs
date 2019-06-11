@@ -113,21 +113,25 @@ namespace GameMaster
                         round.RoundEnded = DateTime.Now;
                         round = round.DetermineScore();
 
+                        if (_gameData.IsGameComplete(game))
+                        {
+                            round.Completed = true;
+                        }
+
                         resultMessage1 = new Message
                         {
                             SessionId = game.PlayerId,
+                            To = game.PlayerId,
+                            Label = "PlayerMove",
                             Body = JsonSerializer.ToBytes(round)
                         };
                         resultMessage1.UserProperties.Add("gameId", game.GameId);
 
-                        if (_gameData.IsGameComplete(game))
-                        {
-                            resultMessage1.Label = "GameComplete";
-                        }
-                        else
+                        if(!round.Completed)
                         {
                             resultMessage2 = new Message
                             {
+                                To = game.OpponentId,
                                 SessionId = game.OpponentId,
                                 Body = JsonSerializer.ToBytes(round)
                             };
@@ -157,7 +161,7 @@ namespace GameMaster
         {
             await _matchmakingSessionClient?.CloseAsync();
             await _playSubscriptionClient?.CloseAsync();
-            await _matchmakingSession?.CloseAsync();
+            //await _matchmakingSession?.CloseAsync();
             await _matchmakingSubscriptionClient?.CloseAsync();
             await _managementClient?.CloseAsync();
         }

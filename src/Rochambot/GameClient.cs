@@ -12,6 +12,13 @@ using Rochambot.Models;
 using System.Text.Json.Serialization;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.FeatureManagement;
+using System.Collections.Concurrent;
+using System.Collections;
+using System.Security.Cryptography.Xml;
+using System.Runtime.InteropServices.ComTypes;
+using Microsoft.Rest.Serialization;
+using System.Runtime.InteropServices;
 
 namespace Rochambot
 {
@@ -30,6 +37,9 @@ namespace Rochambot
         private ManagementClient _managementClient;
         private bool _alreadyVerified;
         private IMessageSession _resultsSession;
+        private readonly CancellationTokenSource _stoppingCts = new CancellationTokenSource();
+        private Task _resultsTask;
+        private Task _matchmakingTask;
 
         public GameClient(IConfiguration configuration,
                           ILogger<GameClient> logger)
@@ -45,10 +55,9 @@ namespace Rochambot
             _matchmakingSendTopic = new TopicClient(_configuration["AzureServiceBusConnectionString"], "matchmaking");
 
             _playTopic = new TopicClient(_configuration["AzureServiceBusConnectionString"], _configuration["PlayTopic"]);
-            
+
             _resultsSubscription = new SubscriptionClient(_configuration["AzureServiceBusConnectionString"], "results", "players");
             _resultsSessionClient = new SessionClient(_configuration["AzureServiceBusConnectionString"], EntityNameHelper.FormatSubscriptionPath("results", "players"));
-
             Games = new List<Game>();
         }
 
@@ -57,7 +66,7 @@ namespace Rochambot
         public Opponent Opponent { get; private set; }
         public UserState UserState { get; set; }
         public event EventHandler OnStateChanged;
-        private string userHash;
+
         public async Task SetPlayerId(UserState userState)
         {
             if (UserState == null || (!UserState.DisplayName.Equals(userState.DisplayName)))
@@ -65,48 +74,75 @@ namespace Rochambot
                 //userHash = Encoding.UTF8.GetString(SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(userState.DisplayName)));
                 UserState = userState;
                 _logger.LogInformation($"User {UserState.DisplayName} logged in");
-                _resultsSubscription.RegisterSessionHandler(OnResultMessage, new SessionHandlerOptions(OnResultError)
-                {
-                    AutoComplete = false
-                });
-                //_resultsSession = await _resultsSessionClient.AcceptMessageSessionAsync(userState.DisplayName);
-                _matchmakingClient.RegisterSessionHandler(HandleMatchmakingMessage, new SessionHandlerOptions(HandleMatchmakingError)
-                {
-                    AutoComplete = false
-                });
-                //_matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(userState.DisplayName);
+
+                _resultsSession = await _resultsSessionClient.AcceptMessageSessionAsync(userState.DisplayName);
+                _matchmakingSession = await _matchmakingSessionClient.AcceptMessageSessionAsync(userState.DisplayName);
                 _logger.LogInformation($"Set up subscription session with session id {userState.DisplayName}");
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
+                _resultsTask = HandleResults();
+                _matchmakingTask = HandleMatchmaking();
             }
         }
 
-        private Task OnResultError(ExceptionReceivedEventArgs arg)
+        private async Task HandleMatchmaking()
         {
-            _logger.LogError("Error handing results {ex}", arg.Exception);
-            return Task.CompletedTask;
+            var token = _stoppingCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                var message = await _matchmakingSession.ReceiveAsync(TimeSpan.FromSeconds(5));
+                if (message is null) continue;
+                await HandleMatchmakingMessage(message);
+                await _matchmakingSession.CompleteAsync(message.SystemProperties.LockToken);
+            }
         }
 
-        private async Task OnResultMessage(IMessageSession session, Message message, CancellationToken arg2)
+        private async Task HandleResults()
+        {
+            var token = _stoppingCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                var message = await _resultsSession.ReceiveAsync(TimeSpan.FromSeconds(5));
+                if (message is null) continue;
+                await HandleResultsMessage(message);
+                await _resultsSession.CompleteAsync(message.SystemProperties.LockToken);
+            }
+        }
+
+        private async Task HandleMatchmakingMessage(Message message)
+        {
+            var gameId = message.UserProperties["gameId"].ToString();
+
+            var game = Games.FirstOrDefault(x => x.Id == gameId);
+
+            if (game != null)
+            {
+                _logger.LogInformation($"Matchmaking request from {UserState.DisplayName} accepted by {game.OpponentId}");
+
+                game.MatchMade(game.OpponentId);
+                _logger.LogInformation("MatchMade");
+                OnStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                _logger.LogInformation("Skipping message for game {gameId} as we have no game associated with that id.", game.Id);
+            }
+        }
+
+        private async Task HandleResultsMessage(Message message)
         {
             try
             {
-                if (session.SessionId != UserState.DisplayName) { return;  }
-
                 _logger.LogInformation("Results message arrived.");
-                //await session.CompleteAsync(message.SystemProperties.LockToken);
                 var gameId = message.UserProperties["gameId"].ToString();
                 var game = Games.Single(x => x.Id == gameId);
                 var round = JsonConvert.DeserializeObject<Round>(Encoding.UTF8.GetString(message.Body));
                 game.Rounds.Add(round);
                 game.PlayMade = false;
 
-                if (message.Label == "GameComplete")
-                {
-                    game.GameOver = true;
-                }
+                //TODO: Move this off the round to a property of the message.
+                game.GameOver = round.Completed;
 
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
-                await session.CompleteAsync(message.SystemProperties.LockToken);
             }
             catch (Exception ex)
             {
@@ -132,45 +168,8 @@ namespace Rochambot
             var game = new Game(gameId);
             this.Games.Add(game);
 
-            //await _matchmakingTopic.SendAsync(gameStartMessage);
             await _matchmakingSendTopic.SendAsync(gameStartMessage);
-        }
 
-        private async Task HandleMatchmakingMessage(IMessageSession messageSession, Message message, CancellationToken cancellationToken)
-        {
-            if (messageSession.SessionId != UserState.DisplayName) { return; }
-
-            //await _matchmakingSession.CompleteAsync(message.SystemProperties.LockToken);
-
-            //await VerifyPlayReceivedSubscriptionExists();
-
-            var gameId = message.UserProperties["gameId"].ToString();
-            var opponentId = message.UserProperties["opponentId"].ToString();
-
-            _logger.LogInformation($"Matchmaking request from {UserState.DisplayName} accepted by {opponentId}");
-
-            var game = Games.FirstOrDefault(x=>x.Id == gameId);
-
-            if (game != null)
-            {
-                game.MatchMade(opponentId);
-                _logger.LogInformation("MatchMade");
-                OnStateChanged?.Invoke(this, EventArgs.Empty);
-                //await messageSession.CompleteAsync(message.SystemProperties.LockToken);
-            }
-            else
-            {
-                _logger.LogInformation("Skipping message for game {gameId} as we have no game associated with that id.", gameId);
-                //Ignore old messages for games that don't exist anymore.
-            }
-            await messageSession.CompleteAsync(message.SystemProperties.LockToken);
-        }
-
-        private Task HandleMatchmakingError(ExceptionReceivedEventArgs arg)
-        {
-            //TODO: We probably need to error out whatever game this happened on.
-            _logger.LogError("Error in matchmaking {0}", arg.Exception, arg.ExceptionReceivedContext);
-            return Task.CompletedTask;
         }
 
         public async Task PlayShapeAsync(Shape shape)
@@ -193,6 +192,7 @@ namespace Rochambot
 
         public async ValueTask DisposeAsync()
         {
+            _stoppingCts.Cancel();
             await _playTopic?.CloseAsync();
             await _resultsSession?.CloseAsync();
             await _resultsSessionClient?.CloseAsync();
@@ -200,7 +200,10 @@ namespace Rochambot
             await _matchmakingTopic?.CloseAsync();
             await _matchmakingSendTopic?.CloseAsync();
             await _matchmakingSessionClient?.CloseAsync();
+            await _matchmakingSession?.CloseAsync();
             await _matchmakingClient?.CloseAsync();
+            await _resultsTask;
+            await _matchmakingTask;
         }
 
         private async Task VerifyPlayReceivedSubscriptionExists()

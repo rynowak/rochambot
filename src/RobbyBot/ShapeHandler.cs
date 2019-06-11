@@ -17,10 +17,8 @@ namespace RobbyBot
         readonly IConfiguration _configuration;
         readonly string _botId;
         private readonly MoveMaker _moveMaker;
-        private readonly SubscriptionClient _resultsClient;
-        private readonly SessionClient _resultsSubClient;
+        private readonly ISubscriptionClient _resultsClient;
         private ManagementClient _managementClient;
-        private IMessageSession _resultsSession;
 
         public ShapeHandler(ILogger<ShapeHandler> logger, IConfiguration configuration, MoveMaker moveMaker)
         {
@@ -29,15 +27,25 @@ namespace RobbyBot
             _botId = _configuration["BotId"];
             _moveMaker = moveMaker;
             
-            _resultsClient = new SubscriptionClient(_configuration["AzureServiceBusConnectionString"], _configuration["ResultsTopic"], "players");
-            _resultsSubClient = new SessionClient(_configuration["AzureServiceBusConnectionString"], EntityNameHelper.FormatSubscriptionPath(_configuration["ResultsTopic"], "players"));
+            _resultsClient = new SubscriptionClient(_configuration["AzureServiceBusConnectionString"], _configuration["ResultsTopic"], "robbybot");
+            _resultsClient.RegisterMessageHandler(HandleMessage, new MessageHandlerOptions(HandleError) { AutoComplete = true });
+        }
+
+        private Task HandleError(ExceptionReceivedEventArgs arg)
+        {
+            throw new NotImplementedException();
+        }
+
+        private async Task HandleMessage(Message message, CancellationToken arg2)
+        {
+            var gameId = message.UserProperties["gameId"].ToString();
+            await _moveMaker.MakeMove(gameId);
         }
 
         public override async Task StartAsync(CancellationToken token)
         {
             await VerifySubscriptionExistsForPlayerAsync();
 
-            _resultsSession = await _resultsSubClient.AcceptMessageSessionAsync(_botId);
             await base.StartAsync(token);
         }
 
@@ -49,22 +57,20 @@ namespace RobbyBot
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                var message = await _resultsSession.ReceiveAsync();
-                if (message == null) continue;
+            //while (!stoppingToken.IsCancellationRequested)
+            //{
+            //    var message = await _resultsSubClient
+            //    if (message == null) continue;
 
-                var gameId = message.UserProperties["gameId"].ToString();
-                await _moveMaker.MakeMove(gameId);
-                await _resultsSession.CompleteAsync(message.SystemProperties.LockToken);
-            }
+            //    var gameId = message.UserProperties["gameId"].ToString();
+            //    await _moveMaker.MakeMove(gameId);
+            //    await _resultsSession.CompleteAsync(message.SystemProperties.LockToken);
+            //}
         }
 
         public override async Task StopAsync(CancellationToken token)
         {
             await _managementClient?.CloseAsync();
-            await _resultsSession?.CloseAsync();
-            await _resultsSubClient?.CloseAsync();
             await _resultsClient?.CloseAsync();
             await base.StopAsync(token);
         }
@@ -73,22 +79,33 @@ namespace RobbyBot
         {
             _managementClient = new ManagementClient(_configuration["AzureServiceBusConnectionString"]);
 
+
+            //await _managementClient.CreateSubscriptionAsync(new SubscriptionDescription("results", "players")
+            //{
+            //    RequiresSession = true
+            //}, new RuleDescription("humansonly", new CorrelationFilter() { Label = "PlayerMove" }));
+
             //await _managementClient.CreateSubscriptionAsync(new SubscriptionDescription("matchmaking", "gamemaster")
             //{
             //    RequiresSession = true,
             //    LockDuration = TimeSpan.FromSeconds(30)
             //}, new RuleDescription("readyrule", new CorrelationFilter() { Label = "gameready" })) ;
 
-            if (!await _managementClient.SubscriptionExistsAsync(_configuration["ResultsTopic"], "bots"))
-            {
-                await _managementClient.CreateSubscriptionAsync
-                (
-                    new SubscriptionDescription(_configuration["ResultsTopic"], "bots")
-                    {
-                        RequiresSession=true
-                    }
-                );
-            }
+            //await _managementClient.CreateSubscriptionAsync(new SubscriptionDescription("results", "robbybot")
+            //{
+            //    RequiresSession = false
+            //}, new RuleDescription("robbyrulez", new CorrelationFilter() { To = _botId }));
+
+            //if (!await _managementClient.SubscriptionExistsAsync(_configuration["ResultsTopic"], "bots"))
+            //{
+            //    await _managementClient.CreateSubscriptionAsync
+            //    (
+            //        new SubscriptionDescription(_configuration["ResultsTopic"], "bots")
+            //        {
+            //            RequiresSession=true
+            //        }
+            //    );
+            //}
         }
     }
 }
