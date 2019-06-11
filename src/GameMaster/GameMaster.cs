@@ -85,7 +85,7 @@ namespace GameMaster
                 var gameId = message.UserProperties["gameId"].ToString();
                 
                 var playerId = message.ReplyToSessionId; // todo: we'll need to add a userproperty of the player who MADE this move
-                var game = await _gameData.GetGame(playerId, gameId);
+                var game = await _gameData.GetGame(gameId);
                 if (game == null)
                 {
                     return;
@@ -204,14 +204,14 @@ namespace GameMaster
                     _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
 
 
-                    if (!(await _gameData.GameExists(playerId, gameId)))
+                    if (!(await _gameData.GameExists(gameId)))
                     {
                         game = await _gameData.CreateGame(playerId, gameId, opponentId);
                        _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
                     }
                     else
                     {
-                       game = await _gameData.GetGame(playerId, gameId);
+                       game = await _gameData.GetGame(gameId);
                        _logger.LogInformation($"Game retrieved for {playerId} to play {opponentId}");
                     }
 

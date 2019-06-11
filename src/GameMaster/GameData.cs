@@ -15,6 +15,8 @@ namespace GameMaster
         private readonly CosmosClient _cosmosClient;
         private readonly CosmosContainer _gamesContainer;
 
+        string partitionKey = "archive01";
+
         public GameData(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -22,27 +24,27 @@ namespace GameMaster
             _gamesContainer = _cosmosClient.Databases["Rochambot"].Containers["Games"];
         }
 
-        public async Task<bool> GameExists(string playerId, string gameId)
+        public async Task<bool> GameExists(string gameId)
         {
-            var response = await _gamesContainer.Items.ReadItemAsync<Game>(playerId, gameId);
+            var response = await _gamesContainer.Items.ReadItemAsync<Game>(partitionKey, gameId);
             return response.StatusCode == HttpStatusCode.Found;
         }
 
         public async Task<Game> CreateGame(string playerId, string gameId, string opponentId)
         {
-            await _gamesContainer.Items.CreateItemAsync<Game>(playerId, new Game 
+            await _gamesContainer.Items.CreateItemAsync<Game>(partitionKey, new Game 
             { 
                 GameId = gameId, 
                 PlayerId = playerId, 
                 OpponentId = opponentId, 
                 DateStarted = DateTime.UtcNow
             });
-            return await GetGame(playerId, gameId);
+            return await GetGame(gameId);
         }
 
-        public async Task<Game> GetGame(string playerId, string gameId)
+        public async Task<Game> GetGame(string gameId)
         {
-            var game = await _gamesContainer.Items.ReadItemAsync<Game>(playerId, gameId);
+            var game = await _gamesContainer.Items.ReadItemAsync<Game>(partitionKey, gameId);
             return game.Resource;
         }
 
@@ -69,7 +71,7 @@ namespace GameMaster
 
         public async Task<Game> MakeMove(string playerId, string gameId, Shape shape)
         {
-            var game = await GetGame(playerId, gameId);
+            var game = await GetGame(gameId);
 
             if(IsCurrentRoundComplete(game))
             {
@@ -94,7 +96,7 @@ namespace GameMaster
 
         public async Task<Round> SaveScore(string playerId, string gameId)
         {
-            var game = await GetGame(playerId, gameId);
+            var game = await GetGame(gameId);
             
             game.Rounds.Last().DetermineScore();
 
@@ -112,7 +114,7 @@ namespace GameMaster
 
         public async Task<IEnumerable<Game>> GetGamesForPlayer(string playerId)
         {
-            var sqlQueryText = "SELECT * FROM g WHERE g.PlayerId = '" + playerId + "'";
+            var sqlQueryText = "SELECT * FROM g WHERE g.player = '" + playerId + "' OR g.opponent = '" + playerId + "'";
 
             CosmosSqlQueryDefinition queryDefinition = new CosmosSqlQueryDefinition(sqlQueryText);
             CosmosResultSetIterator<Game> queryResultSetIterator = 
