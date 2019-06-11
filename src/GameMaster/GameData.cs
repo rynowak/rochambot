@@ -51,8 +51,10 @@ namespace GameMaster
         {
             if(game.Rounds == null || game.Rounds.Count() == 0) return false;
 
-            var playerWins = game.Rounds.Where(x => x.PlayerWins).Count();
-            var opponentWins = game.Rounds.Where(x => !x.PlayerWins).Count();
+            var results = game.Rounds.Where(x => !x.Tie);
+
+            var playerWins = results.Where(x => x.PlayerWins).Count();
+            var opponentWins = results.Where(x => !x.PlayerWins).Count();
             
             var ties = game.Rounds.Where(x => 
                 (x.PlayerShape.HasValue && x.OpponentShape.HasValue) 

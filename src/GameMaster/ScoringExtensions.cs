@@ -37,14 +37,14 @@ namespace GameMaster
         }
         static Round RockBreaksScissors(this Round round)
         {
-            round.Summary = "You Win! Rock breaks scissors.";
+            round.Summary = "You win! Rock breaks scissors.";
             round.PlayerWins = true;
             return round;
         }
 
         static Round ScissorsCutPaper(this Round round)
         {
-            round.Summary = "You Win! Scissors cut paper.";
+            round.Summary = "You win! Scissors cut paper.";
             round.PlayerWins = true;
             return round;
         }
@@ -59,6 +59,7 @@ namespace GameMaster
         static Round TieGame(this Round round)
         {
             round.Summary = "Tie";
+            round.Tie = true;
             round.PlayerWins = false;
             return round;
         }
