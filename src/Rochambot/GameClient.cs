@@ -156,8 +156,7 @@ namespace Rochambot
                 game.Rounds.Add(round);
                 game.PlayMade = false;
 
-                //TODO: Move this off the round to a property of the message.
-                game.GameOver = round.Completed;
+                game.GameOver = message.UserProperties.ContainsKey("Complete");
 
                 OnStateChanged?.Invoke(this, EventArgs.Empty);
             }
