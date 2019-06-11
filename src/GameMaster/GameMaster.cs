@@ -192,15 +192,7 @@ namespace GameMaster
 
                 if (!string.IsNullOrEmpty(playerId))
                 {
-                    Game game = null;
-
-                    game = new Game
-                    {
-                        GameId = gameId,
-                        PlayerId = playerId,
-                        OpponentId = opponentId,
-                        DateStarted = DateTime.UtcNow
-                    };
+                    Game game = await _gameData.CreateGame(playerId, gameId, opponentId);;
                     _logger.LogInformation($"Game created for {playerId} to play {opponentId}");
 
 

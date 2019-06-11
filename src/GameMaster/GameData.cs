@@ -15,8 +15,6 @@ namespace GameMaster
         private readonly CosmosClient _cosmosClient;
         private readonly CosmosContainer _gamesContainer;
 
-        string partitionKey = "archive01";
-
         public GameData(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -26,25 +24,26 @@ namespace GameMaster
 
         public async Task<bool> GameExists(string gameId)
         {
-            var response = await _gamesContainer.Items.ReadItemAsync<Game>(partitionKey, gameId);
+            var response = await _gamesContainer.Items.ReadItemAsync<Game>(gameId, gameId);
             return response.StatusCode == HttpStatusCode.Found;
         }
 
         public async Task<Game> CreateGame(string playerId, string gameId, string opponentId)
         {
-            await _gamesContainer.Items.CreateItemAsync<Game>(partitionKey, new Game 
+            var game = await _gamesContainer.Items.CreateItemAsync<Game>(gameId, new Game 
             { 
                 GameId = gameId, 
                 PlayerId = playerId, 
                 OpponentId = opponentId, 
                 DateStarted = DateTime.UtcNow
             });
+
             return await GetGame(gameId);
         }
 
         public async Task<Game> GetGame(string gameId)
         {
-            var game = await _gamesContainer.Items.ReadItemAsync<Game>(partitionKey, gameId);
+            var game = await _gamesContainer.Items.ReadItemAsync<Game>(gameId, gameId);
             return game.Resource;
         }
 
@@ -90,7 +89,7 @@ namespace GameMaster
                 game.Rounds.Last().OpponentShape = shape;
             }
             
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
             return game;
         }
 
@@ -108,7 +107,7 @@ namespace GameMaster
                 else game.Winner = game.OpponentId;
             }
 
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(playerId, gameId, game);
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
             return game.Rounds.Last();
         }
 
