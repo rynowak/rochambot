@@ -24,13 +24,13 @@ namespace GameMaster
 
         public async Task<bool> GameExists(string gameId)
         {
-            var response = await _gamesContainer.Items.ReadItemAsync<Game>(gameId, gameId);
+            var response = await _gamesContainer.Items.ReadItemAsync<Game>(Game.CURRENT_ARCHIVE, gameId);
             return response.StatusCode == HttpStatusCode.Found;
         }
 
         public async Task<Game> CreateGame(string playerId, string gameId, string opponentId)
         {
-            var game = await _gamesContainer.Items.CreateItemAsync<Game>(gameId, new Game 
+            var game = await _gamesContainer.Items.CreateItemAsync<Game>(Game.CURRENT_ARCHIVE, new Game 
             { 
                 GameId = gameId, 
                 PlayerId = playerId, 
@@ -43,7 +43,7 @@ namespace GameMaster
 
         public async Task<Game> GetGame(string gameId)
         {
-            var game = await _gamesContainer.Items.ReadItemAsync<Game>(gameId, gameId);
+            var game = await _gamesContainer.Items.ReadItemAsync<Game>(Game.CURRENT_ARCHIVE, gameId);
             return game.Resource;
         }
 
@@ -91,7 +91,7 @@ namespace GameMaster
                 game.Rounds.Last().OpponentShape = shape;
             }
             
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(Game.CURRENT_ARCHIVE, gameId, game);
             return game;
         }
 
@@ -109,7 +109,7 @@ namespace GameMaster
                 else game.Winner = game.OpponentId;
             }
 
-            await _gamesContainer.Items.ReplaceItemAsync<Game>(gameId, gameId, game);
+            await _gamesContainer.Items.ReplaceItemAsync<Game>(Game.CURRENT_ARCHIVE, gameId, game);
             return game.Rounds.Last();
         }
 
@@ -119,7 +119,7 @@ namespace GameMaster
 
             CosmosSqlQueryDefinition queryDefinition = new CosmosSqlQueryDefinition(sqlQueryText);
             CosmosResultSetIterator<Game> queryResultSetIterator = 
-                _gamesContainer.Items.CreateItemQuery<Game>(queryDefinition, playerId);
+                _gamesContainer.Items.CreateItemQuery<Game>(queryDefinition, Game.CURRENT_ARCHIVE);
 
             List<Game> games = new List<Game>();
 

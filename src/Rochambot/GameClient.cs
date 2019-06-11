@@ -85,12 +85,17 @@ namespace Rochambot
                 _resultsTask = HandleResults();
                 _matchmakingTask = HandleMatchmaking();
 
+                if(Channel != null)
+                {
+                    await Channel.ShutdownAsync();
+                }
                 Channel = new Channel("localhost:50051", ChannelCredentials.Insecure);
                 GameListerClient = new GameMaster.GameLister.GameListerClient(Channel);
                 var games = await GameListerClient.GetGameListAsync(new GameListRequest
                 {
                     Player = UserState.DisplayName
                 });
+                Console.WriteLine($"Player {UserState.DisplayName} has {games.Games.Count} games");
                 Games.Clear();
                 foreach (var game in games.Games)
                 {
