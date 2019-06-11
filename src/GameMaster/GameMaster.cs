@@ -63,7 +63,7 @@ namespace GameMaster
             _playSubscriptionClient = new SubscriptionClient(_configuration[GameMaster.AzureServiceBusConnectionString], "plays", "gamemaster");
             _playSubscriptionClient.RegisterMessageHandler(HandlePlayMessage, new MessageHandlerOptions(HandlePlayError)
             {
-                AutoComplete = true
+                AutoComplete = false
             }); ;
         }
 
@@ -88,8 +88,9 @@ namespace GameMaster
                 var game = await _gameData.GetGame(playerId, gameId);
                 if (game == null)
                 {
-                    throw new Exception("Out of order messages");
+                    return;
                 }
+                await _playSubscriptionClient.CompleteAsync(message.SystemProperties.LockToken);
                 var shape = JsonSerializer.Parse<Shape>(message.Body);
                 await _gameData.MakeMove(playerId, gameId, shape);
 
