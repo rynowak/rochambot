@@ -12,15 +12,18 @@ namespace RobbyBot
         readonly ILogger<GameRequestHandler> _logger;
         readonly IConfiguration _configuration;
         readonly string _botId;
-
+        private readonly MoveMaker _moveMaker;
         ISubscriptionClient _botRequestQueue;
         ITopicClient _botResponseQueue;
 
-        public GameRequestHandler(ILogger<GameRequestHandler> logger, IConfiguration configuration)
+        public GameRequestHandler(ILogger<GameRequestHandler> logger, 
+                                  IConfiguration configuration,
+                                  MoveMaker moveMaker)
         {
             _logger = logger;
             _configuration = configuration;
             _botId = _configuration["BotId"];
+            _moveMaker = moveMaker;
         }
 
         public Task StartAsync(CancellationToken token)
@@ -47,11 +50,13 @@ namespace RobbyBot
                 Label = "gameready"
             };
             
-            msg.UserProperties.Add("gameId", message.UserProperties["gameId"]);
+            var gameId = message.UserProperties["gameId"].ToString();
+            msg.UserProperties.Add("gameId", gameId);
             msg.UserProperties.Add("opponentId", _botId);
 
             await _botResponseQueue.SendAsync(msg);
-            //await _botRequestQueue.CompleteAsync(message.SystemProperties.LockToken);
+
+            await _moveMaker.MakeMove(gameId);
         }
 
         private Task ReceivedGameRequestErrorAsync(ExceptionReceivedEventArgs arg)

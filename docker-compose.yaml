@@ -1,0 +1,14 @@
+version: "3"
+services:
+  web:
+    build:
+      context: .
+      dockerfile: ./src/Rochambot/Dockerfile
+  robby:
+    build:
+      context: .
+      dockerfile: ./src/RobbyBot/Dockerfile
+  gamemaster:
+    build:
+      context: .
+      dockerfile: ./src/GameMaster/Dockerfile

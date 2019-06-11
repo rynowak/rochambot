@@ -4,14 +4,16 @@
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <UserSecretsId>dotnet-MatchMaker-E65CF0C8-B993-4543-AF43-01ACAFD0711D</UserSecretsId>
     <LangVersion>8.0</LangVersion>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="3.0.0-preview5-19227-01" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Twitter" Version="3.0.0-preview5-19227-01" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="3.0.0-preview5-*" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Twitter" Version="3.0.0-preview5-*" />
     <PackageReference Include="Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="1.0.0-preview-008520001" />
     <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" Version="1.0.0-preview-008560001-910" />
     <PackageReference Include="Microsoft.Azure.ServiceBus" Version="3.4.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.7.9" />
   </ItemGroup>
 
   <Import Project="..\Rochambot.Shared\Rochambot.Shared.projitems" Label="Shared" />

@@ -27,10 +27,11 @@ else
                     <div class="card text=center">
                         <h5 class="card-title">@game.Id</h5>
                         <p>
-                            Opponent: @game.OpponentId
-                            Status: @game.CurrentStatus
+                            Opponent: @game.OpponentId<br />
+                            Status: @game.CurrentStatus<br />
+                            Over? @game.GameOver.ToString()
                         </p>
-                        <button class="btn btn-primary" onclick="@(() => PlayGame(game.Id))">Play</button>
+                        <button class="btn btn-primary" onclick="@(() => PlayGame(game))">Play</button>
                     </div>
                 </li>
             }
@@ -39,16 +40,15 @@ else
     }
     else
     {
-
-    }
-
-    @if (GameClient.Opponent is null)
-    {
-
-    }
-    else
-    {
-        <div class="card-group">
+        <div id="history">
+            <ul>
+                @foreach (var round in GameClient.CurrentGame.Rounds)
+                {
+                    <li>@round.Summary</li>
+                }
+            </ul>
+        </div>
+        @*<div class="card-group">
             <div class="card text-center">
                 <img class="card-img-top" src='@string.Format($"/images/rock-{winLossStatus}.png")' alt="Rock">
             </div>
@@ -58,23 +58,25 @@ else
             <div class="card text-center">
                 <img class="card-img-top" src='@string.Format($"/images/scissors-{winLossStatus}.png")' alt="Scissors">
             </div>
-        </div>
+        </div>*@
 
         <div id="game">
-            <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Rock))">
+            <button type="button" class="btn btn-primary btn-lg" disabled=@(GameClient.CurrentGame?.Playable ?? false) onclick="@(() => Play(Shape.Rock))">
                 <i class="fas fa-hand-rock"></i>
             </button>
-            <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Paper))">
+            <button type="button" class="btn btn-primary btn-lg" disabled=@(GameClient.CurrentGame?.Playable ?? false) onclick="@(() => Play(Shape.Paper))">
                 <i class="fas fa-hand-paper"></i>
             </button>
-            <button type="button" class="btn btn-primary btn-lg" disabled=@disabled onclick="@(() => Play(Shape.Scissors))">
+            <button type="button" class="btn btn-primary btn-lg" disabled=@(GameClient.CurrentGame?.Playable ?? false) onclick="@(() => Play(Shape.Scissors))">
                 <i class="fas fa-hand-scissors"></i>
             </button>
         </div>
+        <br>
+        <div id="back">
+            <button type="button" class="btn btn-primary btn-lg" onclick="@BackToGameList">Back</button>
+        </div>
     }
 }
-
-
 
 @functions {
     [CascadingParameter] UserStateProvider UserState { get; set; }
@@ -84,9 +86,10 @@ else
     bool disabled = false;
     string winLossStatus = "normal";
 
-    protected override async Task OnInitAsync()
+    protected override Task OnInitAsync()
     {
         GameClient.OnStateChanged += UpdateState;
+        return Task.CompletedTask;
     }
 
     protected override async Task OnAfterRenderAsync()
@@ -95,9 +98,11 @@ else
     }
 
     void UpdateState(object sender, EventArgs args)
-    {   
+    {
         Invoke(() =>
         {
+            Logger.LogInformation("Updating state");
+            //TODO: Fix tearing that will happen here. Perhaps GameClient should just be the page code.
             StateHasChanged();
         });
     }
@@ -108,15 +113,14 @@ else
         {
             await GameClient.SetPlayerId(UserState.CurrentUser);
         }
-    } 
+    }
 
-    Task Play(Shape playerPick)
+    async Task Play(Shape playerPick)
     {
+
         playerShape = playerPick;
         status = "Waiting for bot...";
-        disabled = true;
-        //await GameClient.PlayShapeAsync(playerPick);
-        return Task.CompletedTask;
+        await GameClient.PlayShapeAsync(playerPick);
     }
 
     async Task RequestGame()
@@ -126,8 +130,20 @@ else
         status = "Game found.";
     }
 
-    Task PlayGame(string gameId)
+    async Task BackToGameList()
     {
+        await Invoke(() => {
+            GameClient.CurrentGame = null;
+            StateHasChanged();
+        });
+    }
+
+    Task PlayGame(Game game)
+    {
+        if(game.ReadyToPlay)
+        {
+            GameClient.CurrentGame = game;
+        }
         return Task.CompletedTask;
     }
 }

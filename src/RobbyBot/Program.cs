@@ -21,7 +21,8 @@ namespace RobbyBot
                     });
                 })
                 .ConfigureServices(services =>
-                    services.AddHostedService<GameRequestHandler>());
-                            //.AddHostedService<ShapeHandler>());
+                    services.AddHostedService<GameRequestHandler>()
+                            .AddHostedService<ShapeHandler>()
+                            .AddSingleton<MoveMaker>());
     }
 }
