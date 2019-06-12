@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robbybot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: robbybot
+  template:
+    metadata:
+      labels:
+        app: robbybot
+    spec:
+      containers:
+      - name: robbybot
+        imagePullPolicy: Always
+        image: bradygaster/robbybot:latest
+        env:
+          - name: "DOTNET_ENVIRONMENT"
+            value: "Development"
+          - name: "DOTNET_AzureAppConfigConnectionString"
+            value: ""
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi

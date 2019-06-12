@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gamemaster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gamemaster
+  template:
+    metadata:
+      labels:
+        app: gamemaster
+    spec:
+      containers:
+      - name: gamemaster
+        image: bradygaster/gamemaster:latest
+        env:
+          - name: "ASPNETCORE_ENVIRONMENT"
+            value: "Development"
+          - name: "ASPNETCORE_AzureAppConfigConnectionString"
+            value: ""
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gamemaster
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 50051
+  selector:
+    app: gamemaster
