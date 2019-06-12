@@ -34,7 +34,7 @@ namespace GameMaster
 
                 foreach (var round in game.Rounds)
                 {
-                    if (round.RoundEnded != DateTime.MinValue)
+                    if (round.OpponentShape.HasValue && round.PlayerShape.HasValue)
                     {
                         newGameItem.Rounds.Add(new RoundItem
                         {
