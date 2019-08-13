@@ -7,21 +7,21 @@ using System.Threading.Tasks;
 
 namespace Rochambot
 {
-    public class GameClient
+    public class MatchMakerClient
     {
-        public GameClient(HttpClient httpClient, JsonSerializerOptions options)
+        public MatchMakerClient(HttpClient httpClient, JsonSerializerOptions options)
         {
             HttpClient = httpClient;
             Options = options;
         }
 
-        public HttpClient HttpClient { get; set; }
+        public HttpClient HttpClient { get; }
         public JsonSerializerOptions Options { get; }
 
-        public async Task<GameResult> PlayAsync(GameInfo game, Shape move, CancellationToken cancellationToken = default)
+        public async Task<GameInfo> JoinGameAsync(UserInfo user, CancellationToken cancellationToken = default)
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, $"/game/{game.GameId}");
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(new PlayerMove() { Player = game.Player, Move = move, }, Options);
+            var request = new HttpRequestMessage(HttpMethod.Post, "/game");
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(user, Options);
             request.Content = new ByteArrayContent(bytes);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
@@ -30,7 +30,7 @@ namespace Rochambot
 
             using (var body = await response.Content.ReadAsStreamAsync())
             {
-                return await JsonSerializer.DeserializeAsync<GameResult>(body, Options);
+                return await JsonSerializer.DeserializeAsync<GameInfo>(body, Options);
             }
         }
     }
